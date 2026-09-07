@@ -1,11 +1,35 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import SyncDatabase from '../sqlite/sync-database'
 
 export function getCursorAuthPath(): string {
   const configHome = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config')
   return join(configHome, 'cursor', 'auth.json')
 }
+
+export function getCursorDesktopStatePath(platform: NodeJS.Platform = process.platform): string {
+  if (platform === 'darwin') {
+    return join(
+      homedir(),
+      'Library',
+      'Application Support',
+      'Cursor',
+      'User',
+      'globalStorage',
+      'state.vscdb'
+    )
+  }
+  if (platform === 'win32') {
+    const appData = process.env.APPDATA?.trim() || join(homedir(), 'AppData', 'Roaming')
+    return join(appData, 'Cursor', 'User', 'globalStorage', 'state.vscdb')
+  }
+  const configHome = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config')
+  return join(configHome, 'Cursor', 'User', 'globalStorage', 'state.vscdb')
+}
+
+const DESKTOP_ACCESS_TOKEN_KEY = 'cursorAuth/accessToken'
+const DESKTOP_DB_BUSY_TIMEOUT_MS = 1_000
 
 export type CursorAuthSession = {
   accessToken: string
@@ -62,7 +86,38 @@ export function sessionFromCursorAccessToken(accessToken: string): CursorAuthSes
   }
 }
 
-export function readCursorAuthSession(): CursorAuthReadResult {
+function readCursorDesktopAccessToken(): string | null {
+  const dbPath = getCursorDesktopStatePath()
+  if (!existsSync(dbPath)) {
+    return null
+  }
+  let db: SyncDatabase | null = null
+  try {
+    db = new SyncDatabase(dbPath, {
+      readonly: true,
+      fileMustExist: true,
+      timeout: DESKTOP_DB_BUSY_TIMEOUT_MS
+    })
+    const row = db
+      .prepare('SELECT value FROM ItemTable WHERE key = ? LIMIT 1')
+      .get(DESKTOP_ACCESS_TOKEN_KEY) as { value?: unknown } | undefined
+    const value = row?.value
+    if (typeof value === 'string' && value.length > 0) {
+      return value
+    }
+    if (value instanceof Uint8Array) {
+      const decoded = Buffer.from(value).toString('utf8')
+      return decoded.length > 0 ? decoded : null
+    }
+    return null
+  } catch {
+    return null
+  } finally {
+    db?.close()
+  }
+}
+
+function readCursorCliAuthSession(): CursorAuthReadResult {
   const path = getCursorAuthPath()
   if (!existsSync(path)) {
     return { status: 'missing' }
@@ -80,6 +135,18 @@ export function readCursorAuthSession(): CursorAuthReadResult {
   } catch (err) {
     return { status: 'error', error: getCursorAuthReadError(err) }
   }
+}
+
+export function readCursorAuthSession(): CursorAuthReadResult {
+  const cli = readCursorCliAuthSession()
+  if (cli.status === 'ok') {
+    return cli
+  }
+  const desktopToken = readCursorDesktopAccessToken()
+  if (desktopToken) {
+    return { status: 'ok', session: sessionFromCursorAccessToken(desktopToken) }
+  }
+  return cli
 }
 
 const TOKEN_SKEW_MS = 5 * 60 * 1000

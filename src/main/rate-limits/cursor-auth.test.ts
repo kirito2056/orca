@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { mkdtempSync, mkdirSync, rmSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 
 function jwt(claims: Record<string, unknown>): string {
   const header = Buffer.from(JSON.stringify({ alg: 'RS256' })).toString('base64url')
@@ -79,6 +82,35 @@ describe('readCursorAuthSession', () => {
       status: 'error',
       error: 'Cursor auth file is invalid'
     })
+  })
+
+  it('falls back to the Cursor desktop state database when the CLI file is absent', async () => {
+    const home = mkdtempSync(path.join(os.tmpdir(), 'orca-cursor-auth-'))
+    vi.stubEnv('XDG_CONFIG_HOME', path.join(home, '.config'))
+    vi.stubEnv('APPDATA', path.join(home, 'AppData', 'Roaming'))
+    vi.doMock('node:os', () => ({ homedir: () => home, default: { homedir: () => home } }))
+    try {
+      const { readCursorAuthSession, getCursorDesktopStatePath } = await import('./cursor-auth')
+      const dbPath = getCursorDesktopStatePath()
+      mkdirSync(path.dirname(dbPath), { recursive: true })
+      const { DatabaseSync } = await import('node:sqlite')
+      const db = new DatabaseSync(dbPath)
+      db.exec('CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value BLOB)')
+      const accessToken = jwt({ sub: 'auth0|user_desktop', exp: 4_102_444_800 })
+      db.prepare('INSERT INTO ItemTable (key, value) VALUES (?, ?)').run(
+        'cursorAuth/accessToken',
+        accessToken
+      )
+      db.close()
+      expect(readCursorAuthSession()).toEqual({
+        status: 'ok',
+        session: { accessToken, userId: 'user_desktop', expiresAtMs: 4_102_444_800_000 }
+      })
+    } finally {
+      vi.unstubAllEnvs()
+      vi.doUnmock('node:os')
+      rmSync(home, { recursive: true, force: true })
+    }
   })
 
   it('returns no cookie when the token carries no subject', async () => {

@@ -7,11 +7,23 @@ monthly window.
 
 ## Credential source
 
-Orca never signs in to Cursor itself. It reads the access token the Cursor CLI
-(`cursor-agent`) stores at `$XDG_CONFIG_HOME/cursor/auth.json` (default
-`~/.config/cursor/auth.json`). The Cursor desktop app keeps its token in a
-SQLite `state.vscdb`, which this repo has no driver for, so desktop-only users
-must run `cursor-agent login` once.
+Orca never signs in to Cursor itself. It reads an access token from one of two
+places, in this order:
+
+1. The Cursor CLI file `$XDG_CONFIG_HOME/cursor/auth.json` (default
+   `~/.config/cursor/auth.json`). On Linux `cursor-agent login` writes this file.
+   On macOS the CLI stores its token in the Keychain instead, so this file
+   usually does not exist there.
+2. The Cursor desktop app's `state.vscdb` (`ItemTable` key
+   `cursorAuth/accessToken`), read through the `node:sqlite` wrapper in
+   `src/main/sqlite/sync-database.ts`. Paths: macOS
+   `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`,
+   Linux `$XDG_CONFIG_HOME/Cursor/User/globalStorage/state.vscdb`, Windows
+   `%APPDATA%\Cursor\User\globalStorage\state.vscdb`.
+
+The desktop database is opened read-only with a short busy timeout; any open or
+query failure counts as "no desktop token" rather than an error, so a locked or
+missing database never paints an alert in the status bar.
 
 The access token is a JWT. The user id is the last `|`-separated segment of its
 `sub` claim, and the dashboard cookie is assembled as
