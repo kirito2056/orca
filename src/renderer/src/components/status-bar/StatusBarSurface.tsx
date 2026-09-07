@@ -106,12 +106,15 @@ export function StatusBarSurface({
   } = controller
   const usageMode = usageTightestOnly ? 'compact' : statusBarUsageMode
   const unitLabelState = getUsageUnitLabelState(rosterProviders, collapsedUsageProviders, usageMode)
+  const stackedRoster = rosterProviders.length > 1
+  const statusBarBottomPadding = 8 + 24 * (stackedRoster ? rosterProviders.length : 1)
 
   return (
     <div
       ref={barRef}
       // Why: one line at any width — density steps down first. overflow-clip (not hidden) so focus can't scroll the bar; the clip margin spares focus rings and badge dots.
-      className="flex items-center h-6 min-h-[24px] px-3 gap-4 overflow-clip [overflow-clip-margin:3px] whitespace-nowrap border-t border-border bg-[var(--bg-titlebar,var(--card))] text-xs select-none shrink-0 relative"
+      data-stacked={stackedRoster}
+      className="flex items-center h-6 min-h-[24px] px-3 gap-4 overflow-clip [overflow-clip-margin:3px] whitespace-nowrap border-t border-border bg-[var(--bg-titlebar,var(--card))] text-xs select-none shrink-0 relative data-[stacked=true]:h-auto data-[stacked=true]:items-end"
       onContextMenuCapture={(event) => {
         if (!shouldOpenStatusBarContextMenu(event.target)) {
           return
@@ -126,10 +129,15 @@ export function StatusBarSurface({
     >
       {/* Why: usage gives way first — what it drops stays one click away in its popover. */}
       <div
-        className="status-bar-usage-cluster flex min-w-0 flex-1 items-center overflow-clip [overflow-clip-margin:3px]"
+        className="status-bar-usage-cluster flex min-w-0 flex-1 items-center overflow-clip [overflow-clip-margin:3px] data-[stacked=true]:items-end"
         data-overflowing={overflowing}
+        data-stacked={stackedRoster}
       >
-        <div ref={usageRef} className="flex shrink-0 items-center gap-3">
+        <div
+          ref={usageRef}
+          data-stacked={stackedRoster}
+          className="flex min-h-6 shrink-0 items-center gap-3 data-[stacked=true]:items-end"
+        >
           {isEmptyUsageState ? (
             showEmptyUsageCta ? (
               <StatusBarUsageEmptyCta />
@@ -145,7 +153,8 @@ export function StatusBarSurface({
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
-                    className="inline-flex items-center gap-3 rounded px-1 py-0.5 hover:bg-accent/70"
+                    data-stacked={stackedRoster}
+                    className="inline-flex items-center gap-3 rounded px-1 py-0.5 hover:bg-accent/70 data-[stacked=true]:flex-col data-[stacked=true]:items-start data-[stacked=true]:gap-0.5"
                     aria-label={translate(
                       'auto.components.status.bar.UsageRosterPanel.title',
                       'Usage'
@@ -166,7 +175,7 @@ export function StatusBarSurface({
                         data-usage-percentage={usageChipShowsPercentage(p, usageMode)}
                         data-usage-collapsed={collapsedUsageProviders.includes(p.provider)}
                         aria-hidden={collapsedUsageProviders.includes(p.provider)}
-                        className="inline-flex data-[usage-collapsed=true]:invisible data-[usage-collapsed=true]:absolute"
+                        className="inline-flex h-5 items-center data-[usage-collapsed=true]:invisible data-[usage-collapsed=true]:absolute"
                       >
                         <ProviderSegment
                           p={p}
@@ -194,7 +203,7 @@ export function StatusBarSurface({
                   sideOffset={8}
                   // Keep the popover (and its drill-in submenus) above the status
                   // bar instead of overlapping it — bottom padding ≈ footer height.
-                  collisionPadding={{ top: 8, bottom: 32, left: 8, right: 8 }}
+                  collisionPadding={{ top: 8, bottom: statusBarBottomPadding, left: 8, right: 8 }}
                   className="w-[360px] p-0"
                   onPointerDownOutside={usageMenuFocusHandoff.onPointerDownOutside}
                   onCloseAutoFocus={usageMenuFocusHandoff.onCloseAutoFocus}
@@ -262,7 +271,8 @@ export function StatusBarSurface({
                 <button
                   onClick={handleRefresh}
                   disabled={isRefreshing}
-                  className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+                  data-stacked={stackedRoster}
+                  className="data-[stacked=true]:mb-1 p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
                   aria-label={translate(
                     'auto.components.status.bar.StatusBar.3325d996cb',
                     'Refresh rate limits'
@@ -287,7 +297,7 @@ export function StatusBarSurface({
         className="min-w-0 data-[overflowing=true]:overflow-x-auto data-[overflowing=true]:scrollbar-none"
         data-overflowing={overflowing}
       >
-        <div ref={segmentsRef} className="flex w-max items-center gap-3">
+        <div ref={segmentsRef} className="flex h-6 w-max items-center gap-3">
           {!isPairedWebClientWindow() ? (
             <CaffeinateStatusSegment iconOnly={segmentsIconOnly} />
           ) : null}
