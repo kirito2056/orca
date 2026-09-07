@@ -89,11 +89,13 @@ export function StatusBarSurface({
     usageMenuOpen,
     usagePercentageDisplay
   } = controller
+  const stackedRoster = !iconOnly && rosterProviders.length > 1
+  const statusBarBottomPadding = 8 + 24 * (stackedRoster ? rosterProviders.length : 1)
 
   return (
     <div
       ref={containerRefCallback}
-      className="flex items-center h-6 min-h-[24px] px-3 gap-4 border-t border-border bg-[var(--bg-titlebar,var(--card))] text-xs select-none shrink-0 relative"
+      className="flex items-end min-h-[24px] px-3 gap-4 border-t border-border bg-[var(--bg-titlebar,var(--card))] text-xs select-none shrink-0 relative"
       onContextMenuCapture={(event) => {
         if (!shouldOpenStatusBarContextMenu(event.target)) {
           return
@@ -106,7 +108,7 @@ export function StatusBarSurface({
         setMenuOpen(true)
       }}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex min-h-6 items-end gap-3">
         {isEmptyUsageState ? (
           showEmptyUsageCta ? (
             <StatusBarUsageEmptyCta />
@@ -122,7 +124,11 @@ export function StatusBarSurface({
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="inline-flex items-center gap-3 rounded px-1 py-0.5 hover:bg-accent/70"
+                  className={
+                    stackedRoster
+                      ? 'flex flex-col items-start gap-0.5 rounded px-1 py-0.5 hover:bg-accent/70'
+                      : 'inline-flex items-center gap-3 rounded px-1 py-0.5 hover:bg-accent/70'
+                  }
                   aria-label={translate(
                     'auto.components.status.bar.UsageRosterPanel.title',
                     'Usage'
@@ -135,13 +141,14 @@ export function StatusBarSurface({
                         <ProviderLetterBadge p={p} />
                       </span>
                     ) : (
-                      <ProviderSegment
-                        key={p.provider}
-                        p={p}
-                        compact={compact}
-                        display={usagePercentageDisplay}
-                        mode={statusBarUsageMode}
-                      />
+                      <span key={p.provider} className="flex h-5 items-center">
+                        <ProviderSegment
+                          p={p}
+                          compact={compact}
+                          display={usagePercentageDisplay}
+                          mode={statusBarUsageMode}
+                        />
+                      </span>
                     )
                   )}
                 </button>
@@ -153,7 +160,7 @@ export function StatusBarSurface({
                 sideOffset={8}
                 // Keep the popover (and its drill-in submenus) above the status
                 // bar instead of overlapping it — bottom padding ≈ footer height.
-                collisionPadding={{ top: 8, bottom: 32, left: 8, right: 8 }}
+                collisionPadding={{ top: 8, bottom: statusBarBottomPadding, left: 8, right: 8 }}
                 className="w-[360px] p-0"
                 onPointerDownOutside={usageMenuFocusHandoff.onPointerDownOutside}
                 onCloseAutoFocus={usageMenuFocusHandoff.onCloseAutoFocus}
@@ -221,7 +228,7 @@ export function StatusBarSurface({
               <button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+                className="mb-1 p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
                 aria-label={translate(
                   'auto.components.status.bar.StatusBar.3325d996cb',
                   'Refresh rate limits'
@@ -242,7 +249,7 @@ export function StatusBarSurface({
 
       <div className="flex-1" />
 
-      <div className="flex items-center gap-3">
+      <div className="flex h-6 items-center gap-3">
         {!isPairedWebClientWindow() ? <CaffeinateStatusSegment iconOnly={iconOnly} /> : null}
         <RemoteServerUpdateStatusSegment iconOnly={iconOnly} />
         <SkillUpdateStatusSegment iconOnly={iconOnly} />
