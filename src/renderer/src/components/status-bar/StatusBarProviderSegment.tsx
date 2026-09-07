@@ -6,6 +6,10 @@ import {
   type UsagePercentageDisplay
 } from '../../../../shared/usage-percentage-display'
 import type { StatusBarUsageMode } from '../../../../shared/status-bar-usage-mode'
+import {
+  CURSOR_MODELS_BUCKET_NAME,
+  CURSOR_OTHER_MODELS_BUCKET_NAME
+} from '../../../../shared/cursor-usage-buckets'
 import { ProviderIcon, clampUsedPercent, getProviderUsageStatusLabel } from './tooltip'
 import { getTightestUsageSection } from './UsageRosterPanel'
 import { formatRateLimitWindowChipLabel } from '@/lib/window-label-formatter'
@@ -84,6 +88,8 @@ function getProviderLetter(provider: ProviderRateLimits['provider']): string {
       return 'R'
     case 'codex':
       return 'X'
+    case 'cursor':
+      return 'U'
   }
 }
 
@@ -92,7 +98,13 @@ function getProviderLetter(provider: ProviderRateLimits['provider']): string {
 // ---------------------------------------------------------------------------
 
 // Why: Gemini exposes extra experimental buckets that made the pre-existing verbose footer noisy.
-const STATUS_BAR_BUCKET_NAMES = new Set(['Flash', 'Pro', '1.5 Pro'])
+const STATUS_BAR_BUCKET_NAMES = new Set([
+  'Flash',
+  'Pro',
+  '1.5 Pro',
+  CURSOR_MODELS_BUCKET_NAME,
+  CURSOR_OTHER_MODELS_BUCKET_NAME
+])
 
 function VerboseProviderUsage({
   p,

@@ -97,6 +97,9 @@ export function ProviderIcon({ provider }: { provider: string }): React.JSX.Elem
   if (provider === 'grok') {
     return <AgentIcon agent="grok" size={13} />
   }
+  if (provider === 'cursor') {
+    return <AgentIcon agent="cursor" size={13} />
+  }
   return <ClaudeIcon size={13} />
 }
 
@@ -149,7 +152,15 @@ export function getWindowSections(
       {
         label: translate('auto.components.status.bar.tooltip.252c096536', 'Weekly'),
         window: p.weekly
-      }
+      },
+      ...(p.monthly !== undefined && p.monthly !== null
+        ? [
+            {
+              label: translate('auto.components.status.bar.tooltip.7f7f208060', 'Monthly'),
+              window: p.monthly
+            }
+          ]
+        : [])
     ]
   }
   const sections: { label: string; window: RateLimitWindow | null }[] = [
