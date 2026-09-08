@@ -27,3 +27,24 @@ export function deriveAntigravityRateLimits(gemini: ProviderRateLimits): Provide
     status: 'unavailable'
   }
 }
+
+export function antigravityProbeSkippedResult(): ProviderRateLimits {
+  return {
+    provider: 'antigravity',
+    session: null,
+    weekly: null,
+    updatedAt: Date.now(),
+    error: 'Antigravity CLI probe skipped',
+    status: 'unavailable'
+  }
+}
+
+export function resolveAntigravityRateLimits(
+  probe: ProviderRateLimits | null,
+  gemini: ProviderRateLimits
+): ProviderRateLimits {
+  if (probe && probe.status === 'ok') {
+    return probe
+  }
+  return deriveAntigravityRateLimits(gemini)
+}

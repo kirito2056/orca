@@ -10,6 +10,7 @@ import {
   CURSOR_MODELS_BUCKET_NAME,
   CURSOR_OTHER_MODELS_BUCKET_NAME
 } from '../../../../shared/cursor-usage-buckets'
+import { isAntigravityBucketName } from '../../../../shared/antigravity-usage-buckets'
 import { ProviderIcon, clampUsedPercent, getProviderUsageStatusLabel } from './tooltip'
 import { getTightestUsageSection } from './UsageRosterPanel'
 import { formatRateLimitWindowChipLabel } from '@/lib/window-label-formatter'
@@ -114,7 +115,9 @@ function VerboseProviderUsage({
   display: UsagePercentageDisplay
 }): React.JSX.Element {
   if (p.buckets && p.buckets.length > 0) {
-    const visibleBuckets = p.buckets.filter((bucket) => STATUS_BAR_BUCKET_NAMES.has(bucket.name))
+    const visibleBuckets = p.buckets.filter(
+      (bucket) => STATUS_BAR_BUCKET_NAMES.has(bucket.name) || isAntigravityBucketName(bucket.name)
+    )
     return (
       <>
         {visibleBuckets.map((bucket, index) => (

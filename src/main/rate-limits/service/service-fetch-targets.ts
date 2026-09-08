@@ -1,4 +1,5 @@
 import { RateLimitServiceResultPolicy } from './service-result-policy'
+import { isAntigravityCliResolvable } from '../antigravity-pty'
 import { fetchCodexRateLimits } from '../codex-fetcher'
 import { fetchKimiRateLimits } from '../kimi-fetcher'
 import {
@@ -123,6 +124,10 @@ export abstract class RateLimitServiceFetchTargets extends RateLimitServiceResul
     // Why: the caller must receive the redeemed target even if the global UI
     // switched targets while the provider mutation was in flight.
     return { ...stateBeforeReset, codex: scopedCodex, codexTarget: target }
+  }
+
+  protected shouldAllowAntigravityPtyProbe(): boolean {
+    return process.platform !== 'win32' && isAntigravityCliResolvable()
   }
 
   protected shouldAllowCodexPtyFallback(): boolean {

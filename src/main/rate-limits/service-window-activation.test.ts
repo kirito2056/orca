@@ -61,6 +61,11 @@ vi.mock('./cursor-auth', () => ({
   readCursorAuthSession: vi.fn(() => ({ status: 'missing' }))
 }))
 
+vi.mock('./antigravity-pty', () => ({
+  fetchAntigravityUsageViaPty: vi.fn(),
+  isAntigravityCliResolvable: vi.fn(() => false)
+}))
+
 vi.mock('../minimax/minimax-cookie-store', () => ({
   hasMiniMaxSessionCookie: vi.fn(() => false)
 }))
