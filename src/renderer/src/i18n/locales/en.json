@@ -4541,6 +4541,8 @@
           "c760c481c5": "Usage Overview",
           "55c910f4f1": "- some model prices are unavailable",
           "enableMuse": "Enable Muse",
+          "enableAntigravity": "Enable Antigravity",
+          "enableCursor": "Enable Cursor",
           "noLocalUsageYet": "No local Claude, Codex, OpenCode, or Muse usage found yet. The overview will populate after the next agent session writes token logs."
         },
         "share": {
@@ -4657,6 +4659,28 @@
           "emptyMessage": "No local Muse usage found yet for this scope.",
           "noCostNote": "Muse session logs record tokens but not cost, so no cost estimate is shown.",
           "recentSessionsDescription": "Most recent local Muse sessions in this scope."
+        },
+        "AntigravityUsagePane": {
+          "title": "Antigravity Usage Tracking",
+          "enableLabel": "Enable Antigravity usage analytics",
+          "disabledDescription": "Reads local Antigravity transcripts to show token, model, and session stats.",
+          "scopeAll": "All local Antigravity usage",
+          "optionsLabel": "Antigravity usage options",
+          "refreshAriaLabel": "Refresh Antigravity usage",
+          "emptyMessage": "No local Antigravity usage found yet for this scope.",
+          "noCostNote": "Antigravity transcripts record tokens but not cost, so no cost estimate is shown.",
+          "recentSessionsDescription": "Most recent local Antigravity sessions in this scope."
+        },
+        "CursorUsagePane": {
+          "title": "Cursor Usage Tracking",
+          "enableLabel": "Enable Cursor usage analytics",
+          "disabledDescription": "Reads usage events from the Cursor dashboard with your signed-in Cursor account to show token, model, cost, and session stats.",
+          "scopeAll": "All Cursor usage",
+          "optionsLabel": "Cursor usage options",
+          "refreshAriaLabel": "Refresh Cursor usage",
+          "emptyMessage": "No Cursor usage found yet for this scope.",
+          "costNote": "Cost is the API-rate value Cursor records for each request, including usage covered by your plan.",
+          "recentSessionsDescription": "Most recent Cursor sessions in this scope."
         }
       },
       "sparse": {

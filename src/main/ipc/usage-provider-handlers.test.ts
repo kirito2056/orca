@@ -22,15 +22,28 @@ describe('usage provider IPC handlers', () => {
     const codexUsage = createUsage()
     const openCodeUsage = createUsage()
     const museUsage = createUsage()
+    const antigravityUsage = createUsage()
+    const cursorUsage = createUsage()
     registerUsageProviderHandlers({
       claudeUsage: claudeUsage as never,
       codexUsage: codexUsage as never,
       // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the mock implements every method the registrar calls on a usage store.
       museUsage: museUsage as never,
-      openCodeUsage: openCodeUsage as never
+      openCodeUsage: openCodeUsage as never,
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the mock implements every method the registrar calls on a usage store.
+      antigravityUsage: antigravityUsage as never,
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the mock implements every method the registrar calls on a usage store.
+      cursorUsage: cursorUsage as never
     })
 
-    const prefixes = ['claudeUsage', 'codexUsage', 'openCodeUsage', 'museUsage']
+    const prefixes = [
+      'claudeUsage',
+      'codexUsage',
+      'openCodeUsage',
+      'museUsage',
+      'antigravityUsage',
+      'cursorUsage'
+    ]
     const suffixes = Object.keys(claudeUsage)
     expect(handle.mock.calls.map(([channel]) => channel)).toEqual(
       prefixes.flatMap((prefix) => suffixes.map((suffix) => `${prefix}:${suffix}`))

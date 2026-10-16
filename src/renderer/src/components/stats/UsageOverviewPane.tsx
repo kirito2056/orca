@@ -39,18 +39,30 @@ export function UsageOverviewPane(): React.JSX.Element {
   const museScanState = useAppStore((state) => state.museUsageScanState)
   const museSummary = useAppStore((state) => state.museUsageSummary)
   const museDaily = useAppStore((state) => state.museUsageDaily)
+  const antigravityScanState = useAppStore((state) => state.antigravityUsageScanState)
+  const antigravitySummary = useAppStore((state) => state.antigravityUsageSummary)
+  const antigravityDaily = useAppStore((state) => state.antigravityUsageDaily)
+  const cursorScanState = useAppStore((state) => state.cursorUsageScanState)
+  const cursorSummary = useAppStore((state) => state.cursorUsageSummary)
+  const cursorDaily = useAppStore((state) => state.cursorUsageDaily)
   const fetchClaudeUsage = useAppStore((state) => state.fetchClaudeUsage)
   const fetchCodexUsage = useAppStore((state) => state.fetchCodexUsage)
   const fetchOpenCodeUsage = useAppStore((state) => state.fetchOpenCodeUsage)
   const fetchMuseUsage = useAppStore((state) => state.fetchMuseUsage)
+  const fetchAntigravityUsage = useAppStore((state) => state.fetchAntigravityUsage)
+  const fetchCursorUsage = useAppStore((state) => state.fetchCursorUsage)
   const refreshClaudeUsage = useAppStore((state) => state.refreshClaudeUsage)
   const refreshCodexUsage = useAppStore((state) => state.refreshCodexUsage)
   const refreshOpenCodeUsage = useAppStore((state) => state.refreshOpenCodeUsage)
   const refreshMuseUsage = useAppStore((state) => state.refreshMuseUsage)
+  const refreshAntigravityUsage = useAppStore((state) => state.refreshAntigravityUsage)
+  const refreshCursorUsage = useAppStore((state) => state.refreshCursorUsage)
   const enableClaudeUsage = useAppStore((state) => state.enableClaudeUsage)
   const enableCodexUsage = useAppStore((state) => state.enableCodexUsage)
   const enableOpenCodeUsage = useAppStore((state) => state.enableOpenCodeUsage)
   const enableMuseUsage = useAppStore((state) => state.enableMuseUsage)
+  const enableAntigravityUsage = useAppStore((state) => state.enableAntigravityUsage)
+  const enableCursorUsage = useAppStore((state) => state.enableCursorUsage)
   const recordFeatureInteraction = useAppStore((state) => state.recordFeatureInteraction)
 
   useEffect(() => {
@@ -58,7 +70,16 @@ export function UsageOverviewPane(): React.JSX.Element {
     void fetchCodexUsage()
     void fetchOpenCodeUsage()
     void fetchMuseUsage()
-  }, [fetchClaudeUsage, fetchCodexUsage, fetchOpenCodeUsage, fetchMuseUsage])
+    void fetchAntigravityUsage()
+    void fetchCursorUsage()
+  }, [
+    fetchClaudeUsage,
+    fetchCodexUsage,
+    fetchOpenCodeUsage,
+    fetchMuseUsage,
+    fetchAntigravityUsage,
+    fetchCursorUsage
+  ])
 
   const overview = useMemo(
     () =>
@@ -82,15 +103,31 @@ export function UsageOverviewPane(): React.JSX.Element {
           scanState: museScanState,
           summary: museSummary,
           daily: museDaily
+        },
+        antigravity: {
+          scanState: antigravityScanState,
+          summary: antigravitySummary,
+          daily: antigravityDaily
+        },
+        cursor: {
+          scanState: cursorScanState,
+          summary: cursorSummary,
+          daily: cursorDaily
         }
       }),
     [
+      antigravityDaily,
+      antigravityScanState,
+      antigravitySummary,
       claudeDaily,
       claudeScanState,
       claudeSummary,
       codexDaily,
       codexScanState,
       codexSummary,
+      cursorDaily,
+      cursorScanState,
+      cursorSummary,
       museDaily,
       museScanState,
       museSummary,
@@ -110,7 +147,9 @@ export function UsageOverviewPane(): React.JSX.Element {
       claudeScanState?.enabled ? refreshClaudeUsage() : Promise.resolve(),
       codexScanState?.enabled ? refreshCodexUsage() : Promise.resolve(),
       openCodeScanState?.enabled ? refreshOpenCodeUsage() : Promise.resolve(),
-      museScanState?.enabled ? refreshMuseUsage() : Promise.resolve()
+      museScanState?.enabled ? refreshMuseUsage() : Promise.resolve(),
+      antigravityScanState?.enabled ? refreshAntigravityUsage() : Promise.resolve(),
+      cursorScanState?.enabled ? refreshCursorUsage() : Promise.resolve()
     ])
   }
 
@@ -213,6 +252,32 @@ export function UsageOverviewPane(): React.JSX.Element {
                 >
                   {translate('auto.components.stats.UsageOverviewPane.enableMuse', 'Enable Muse')}
                 </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    recordFeatureInteraction('usage-tracking')
+                    void enableAntigravityUsage()
+                  }}
+                >
+                  {translate(
+                    'auto.components.stats.UsageOverviewPane.enableAntigravity',
+                    'Enable Antigravity'
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    recordFeatureInteraction('usage-tracking')
+                    void enableCursorUsage()
+                  }}
+                >
+                  {translate(
+                    'auto.components.stats.UsageOverviewPane.enableCursor',
+                    'Enable Cursor'
+                  )}
+                </Button>
               </div>
             </div>
           </div>
@@ -300,8 +365,12 @@ export function UsageOverviewPane(): React.JSX.Element {
                   void enableCodexUsage()
                 } else if (provider.id === 'opencode') {
                   void enableOpenCodeUsage()
-                } else {
+                } else if (provider.id === 'muse') {
                   void enableMuseUsage()
+                } else if (provider.id === 'antigravity') {
+                  void enableAntigravityUsage()
+                } else {
+                  void enableCursorUsage()
                 }
               }}
             />

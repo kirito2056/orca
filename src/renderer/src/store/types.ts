@@ -21,6 +21,8 @@ import type {
   MuseUsageSlice,
   OpenCodeUsageSlice
 } from './slices/usage-provider-slices'
+import type { AntigravityUsageSlice } from './slices/antigravity-usage-slice'
+import type { CursorUsageSlice } from './slices/cursor-usage-slice'
 import type { BrowserSlice } from './slices/browser'
 import type { RateLimitSlice } from './slices/rate-limits'
 import type { SshSlice } from './slices/ssh'
@@ -68,6 +70,8 @@ export type AppState = RepoSlice &
   CodexUsageSlice &
   OpenCodeUsageSlice &
   MuseUsageSlice &
+  AntigravityUsageSlice &
+  CursorUsageSlice &
   BrowserSlice &
   RateLimitSlice &
   SshSlice &

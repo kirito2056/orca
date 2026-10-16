@@ -24,6 +24,8 @@ import {
   createMuseUsageSlice,
   createOpenCodeUsageSlice
 } from './usage-provider-slices'
+import { createAntigravityUsageSlice } from './antigravity-usage-slice'
+import { createCursorUsageSlice } from './cursor-usage-slice'
 import { createBrowserSlice } from './browser'
 import { createRateLimitSlice } from './rate-limits'
 import { createSshSlice } from './ssh'
@@ -83,6 +85,8 @@ export function createTestStore() {
     ...createCodexUsageSlice(...a),
     ...createOpenCodeUsageSlice(...a),
     ...createMuseUsageSlice(...a),
+    ...createAntigravityUsageSlice(...a),
+    ...createCursorUsageSlice(...a),
     ...createBrowserSlice(...a),
     ...createRateLimitSlice(...a),
     ...createSshSlice(...a),

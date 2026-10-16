@@ -3,6 +3,8 @@ import { scanClaudeUsageFiles } from '../claude-usage/scanner'
 import { scanCodexUsageFiles } from '../codex-usage/scanner'
 import { scanOpenCodeUsageDatabases } from '../opencode-usage/scanner'
 import { scanMuseUsageFiles } from '../muse-usage/scanner'
+import { scanAntigravityUsageFiles } from '../antigravity-usage/scanner'
+import { normalizeAntigravityUsagePersistedFiles } from '../antigravity-usage/persisted-file-normalization'
 import type {
   UsageScanWorkerProgress,
   UsageScanWorkerRequest,
@@ -102,6 +104,19 @@ async function runScan(
       const result = await scanMuseUsageFiles(request.worktrees, request.previous, onFilesScanned)
       return {
         providerId: 'muse',
+        source: result.processedFiles,
+        sessions: result.sessions,
+        dailyAggregates: result.dailyAggregates
+      }
+    }
+    case 'antigravity': {
+      const result = await scanAntigravityUsageFiles(
+        request.worktrees,
+        normalizeAntigravityUsagePersistedFiles(request.previous),
+        onFilesScanned
+      )
+      return {
+        providerId: 'antigravity',
         source: result.processedFiles,
         sessions: result.sessions,
         dailyAggregates: result.dailyAggregates

@@ -26,6 +26,8 @@ const {
       codexUsage: {},
       openCodeUsage: {},
       museUsage: {},
+      antigravityUsage: {},
+      cursorUsage: {},
       codexAccounts: {},
       claudeAccounts: {},
       rateLimits: { attach: vi.fn(), start: vi.fn() },

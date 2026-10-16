@@ -20,6 +20,11 @@ import type {
   MuseUsagePersistedFile,
   MuseUsageSession
 } from '../muse-usage/types'
+import type {
+  AntigravityUsageDailyAggregate,
+  AntigravityUsagePersistedFile,
+  AntigravityUsageSession
+} from '../antigravity-usage/types'
 import type { UsageScanWorktreeRef } from './usage-provider-contract'
 import type {
   UsageScanWorkerProviderId,
@@ -196,6 +201,24 @@ export async function scanMuseUsageOnWorker(
   const value = await scan({ providerId: 'muse', worktrees, previous })
   if (value.providerId !== 'muse') {
     throw wrongProvider('muse', value.providerId)
+  }
+  return value
+}
+
+export async function scanAntigravityUsageOnWorker(
+  scan: (body: UsageScanWorkerRequestBody) => Promise<UsageScanWorkerValue>,
+  worktrees: UsageScanWorktreeRef[],
+  previous: AntigravityUsagePersistedFile[]
+): Promise<
+  ProviderScanResult<
+    AntigravityUsagePersistedFile,
+    AntigravityUsageSession,
+    AntigravityUsageDailyAggregate
+  >
+> {
+  const value = await scan({ providerId: 'antigravity', worktrees, previous })
+  if (value.providerId !== 'antigravity') {
+    throw wrongProvider('antigravity', value.providerId)
   }
   return value
 }

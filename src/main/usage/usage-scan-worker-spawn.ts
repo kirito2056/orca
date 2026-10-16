@@ -22,8 +22,14 @@ import type {
   MuseUsagePersistedFile,
   MuseUsageSession
 } from '../muse-usage/types'
+import type {
+  AntigravityUsageDailyAggregate,
+  AntigravityUsagePersistedFile,
+  AntigravityUsageSession
+} from '../antigravity-usage/types'
 import type { UsageScanWorktreeRef } from './usage-provider-contract'
 import {
+  scanAntigravityUsageOnWorker,
   scanClaudeUsageOnWorker,
   scanCodexUsageOnWorker,
   scanMuseUsageOnWorker,
@@ -155,6 +161,26 @@ export async function scanMuseUsageFilesViaWorker(
   dailyAggregates: MuseUsageDailyAggregate[]
 }> {
   const value = await scanMuseUsageOnWorker(
+    (body) => getSharedClient().scan(body),
+    worktrees,
+    previous
+  )
+  return {
+    processedFiles: value.source,
+    sessions: value.sessions,
+    dailyAggregates: value.dailyAggregates
+  }
+}
+
+export async function scanAntigravityUsageFilesViaWorker(
+  worktrees: UsageScanWorktreeRef[],
+  previous: AntigravityUsagePersistedFile[] = []
+): Promise<{
+  processedFiles: AntigravityUsagePersistedFile[]
+  sessions: AntigravityUsageSession[]
+  dailyAggregates: AntigravityUsageDailyAggregate[]
+}> {
+  const value = await scanAntigravityUsageOnWorker(
     (body) => getSharedClient().scan(body),
     worktrees,
     previous

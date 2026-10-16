@@ -18,6 +18,11 @@ import type {
   MuseUsagePersistedFile,
   MuseUsageSession
 } from '../muse-usage/types'
+import type {
+  AntigravityUsageDailyAggregate,
+  AntigravityUsagePersistedFile,
+  AntigravityUsageSession
+} from '../antigravity-usage/types'
 import type { UsageScanWorktreeRef } from './usage-provider-contract'
 
 // Why (#20940): the first-party usage scans walk whole rollout/transcript
@@ -31,7 +36,7 @@ import type { UsageScanWorktreeRef } from './usage-provider-contract'
  * than `UsageProviderId`: a `plugin:` provider supplies its own scan function,
  * which is not in this bundle and cannot be named on the wire.
  */
-export type UsageScanWorkerProviderId = 'claude' | 'codex' | 'opencode' | 'muse'
+export type UsageScanWorkerProviderId = 'claude' | 'codex' | 'opencode' | 'muse' | 'antigravity'
 
 /** Request body per provider; `previous` is that provider's own per-source cache. */
 export type UsageScanWorkerRequestBody =
@@ -48,6 +53,11 @@ export type UsageScanWorkerRequestBody =
       previous: OpenCodeUsagePersistedDatabase[]
     }
   | { providerId: 'muse'; worktrees: UsageScanWorktreeRef[]; previous: MuseUsagePersistedFile[] }
+  | {
+      providerId: 'antigravity'
+      worktrees: UsageScanWorktreeRef[]
+      previous: AntigravityUsagePersistedFile[]
+    }
 
 export type UsageScanWorkerRequest = UsageScanWorkerRequestBody & { id: number }
 
@@ -80,6 +90,12 @@ export type UsageScanWorkerValue =
       source: MuseUsagePersistedFile[]
       sessions: MuseUsageSession[]
       dailyAggregates: MuseUsageDailyAggregate[]
+    }
+  | {
+      providerId: 'antigravity'
+      source: AntigravityUsagePersistedFile[]
+      sessions: AntigravityUsageSession[]
+      dailyAggregates: AntigravityUsageDailyAggregate[]
     }
 
 export type UsageScanWorkerResponse =

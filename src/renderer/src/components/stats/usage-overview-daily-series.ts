@@ -33,7 +33,9 @@ function emptyDailyTotals(day: string): Omit<UsageOverviewDailyPoint, 'intensity
     claudeTokens: 0,
     codexTokens: 0,
     openCodeTokens: 0,
-    museTokens: 0
+    museTokens: 0,
+    antigravityTokens: 0,
+    cursorTokens: 0
   }
 }
 
@@ -66,6 +68,20 @@ export function buildDailyOverview(input: UsageOverviewInput): UsageOverviewDail
     const current = byDay.get(entry.day) ?? emptyDailyTotals(entry.day)
     current.totalTokens += entry.totalTokens
     current.museTokens += entry.totalTokens
+    byDay.set(entry.day, current)
+  }
+
+  for (const entry of input.antigravity.daily) {
+    const current = byDay.get(entry.day) ?? emptyDailyTotals(entry.day)
+    current.totalTokens += entry.totalTokens
+    current.antigravityTokens += entry.totalTokens
+    byDay.set(entry.day, current)
+  }
+
+  for (const entry of input.cursor.daily) {
+    const current = byDay.get(entry.day) ?? emptyDailyTotals(entry.day)
+    current.totalTokens += entry.totalTokens
+    current.cursorTokens += entry.totalTokens
     byDay.set(entry.day, current)
   }
 

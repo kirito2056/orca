@@ -4305,6 +4305,8 @@
           "c760c481c5": "使用方法の概要",
           "55c910f4f1": "- 一部のモデルの価格は利用できません",
           "enableMuse": "Muse を有効にする",
+          "enableAntigravity": "Antigravity を有効にする",
+          "enableCursor": "Cursor を有効にする",
           "noLocalUsageYet": "ローカルの Claude、Codex、OpenCode、Muse の使用状況はまだ見つかりません。次の Agent セッションがトークンログを書き込むと、概要に反映されます。"
         },
         "share": {
@@ -4421,6 +4423,28 @@
           "emptyMessage": "このスコープではローカルの Muse 使用状況がまだ見つかりません。",
           "noCostNote": "Muse のセッションログにはトークンは記録されますがコストは記録されないため、コストの見積もりは表示されません。",
           "recentSessionsDescription": "このスコープ内の最新のローカル Muse セッション。"
+        },
+        "AntigravityUsagePane": {
+          "title": "Antigravity 使用状況のトラッキング",
+          "enableLabel": "Antigravity の使用状況分析を有効にする",
+          "disabledDescription": "ローカルの Antigravity セッションログを読み取り、トークン、モデル、セッションの統計を表示します。",
+          "scopeAll": "ローカルの Antigravity 使用状況すべて",
+          "optionsLabel": "Antigravity 使用状況のオプション",
+          "refreshAriaLabel": "Antigravity の使用状況を更新",
+          "emptyMessage": "このスコープではローカルの Antigravity 使用状況がまだ見つかりません。",
+          "noCostNote": "Antigravity のセッションログにはトークンは記録されますがコストは記録されないため、コストの見積もりは表示されません。",
+          "recentSessionsDescription": "このスコープ内の最新のローカル Antigravity セッション。"
+        },
+        "CursorUsagePane": {
+          "title": "Cursor 使用状況のトラッキング",
+          "enableLabel": "Cursor の使用状況分析を有効にする",
+          "disabledDescription": "サインイン中の Cursor アカウントで Cursor ダッシュボードの使用イベントを読み取り、トークン、モデル、コスト、セッションの統計を表示します。",
+          "scopeAll": "Cursor の使用状況すべて",
+          "optionsLabel": "Cursor 使用状況のオプション",
+          "refreshAriaLabel": "Cursor の使用状況を更新",
+          "emptyMessage": "このスコープでは Cursor の使用状況がまだ見つかりません。",
+          "costNote": "コストは Cursor がリクエストごとに記録した API 料金ベースの金額で、プランに含まれる使用分も含みます。",
+          "recentSessionsDescription": "このスコープ内の最新の Cursor セッション。"
         }
       },
       "sparse": {

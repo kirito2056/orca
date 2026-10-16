@@ -18,8 +18,18 @@ import type {
   MuseUsageScanState,
   MuseUsageSummary
 } from '../../../../shared/muse-usage-types'
+import type {
+  AntigravityUsageDailyPoint,
+  AntigravityUsageScanState,
+  AntigravityUsageSummary
+} from '../../../../shared/antigravity-usage-types'
+import type {
+  CursorUsageDailyPoint,
+  CursorUsageScanState,
+  CursorUsageSummary
+} from '../../../../shared/cursor-usage-types'
 
-export type UsageProviderId = 'claude' | 'codex' | 'opencode' | 'muse'
+export type UsageProviderId = 'claude' | 'codex' | 'opencode' | 'muse' | 'antigravity' | 'cursor'
 
 export type UsageProviderOverview = {
   id: UsageProviderId
@@ -52,6 +62,8 @@ export type UsageOverviewDailyPoint = {
   codexTokens: number
   openCodeTokens: number
   museTokens: number
+  antigravityTokens: number
+  cursorTokens: number
   intensity: 0 | 1 | 2 | 3 | 4
 }
 
@@ -97,5 +109,15 @@ export type UsageOverviewInput = {
     scanState: MuseUsageScanState | null
     summary: MuseUsageSummary | null
     daily: MuseUsageDailyPoint[]
+  }
+  antigravity: {
+    scanState: AntigravityUsageScanState | null
+    summary: AntigravityUsageSummary | null
+    daily: AntigravityUsageDailyPoint[]
+  }
+  cursor: {
+    scanState: CursorUsageScanState | null
+    summary: CursorUsageSummary | null
+    daily: CursorUsageDailyPoint[]
   }
 }

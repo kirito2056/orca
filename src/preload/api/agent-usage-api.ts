@@ -6,6 +6,11 @@ import type {
 } from '../../shared/opencode-usage-types'
 import type { MuseUsageBreakdownKind, MuseUsageSnapshot } from '../../shared/muse-usage-types'
 import type {
+  AntigravityUsageBreakdownKind,
+  AntigravityUsageSnapshot
+} from '../../shared/antigravity-usage-types'
+import type { CursorUsageBreakdownKind, CursorUsageSnapshot } from '../../shared/cursor-usage-types'
+import type {
   CodexRateLimitResetResult,
   RateLimitRuntimeTarget,
   RateLimitState
@@ -46,6 +51,13 @@ export type CodexUsageApi = UsageProviderApi<CodexUsageSnapshot, CodexUsageBreak
 export type OpenCodeUsageApi = UsageProviderApi<OpenCodeUsageSnapshot, OpenCodeUsageBreakdownKind>
 
 export type MuseUsageApi = UsageProviderApi<MuseUsageSnapshot, MuseUsageBreakdownKind>
+
+export type AntigravityUsageApi = UsageProviderApi<
+  AntigravityUsageSnapshot,
+  AntigravityUsageBreakdownKind
+>
+
+export type CursorUsageApi = UsageProviderApi<CursorUsageSnapshot, CursorUsageBreakdownKind>
 
 export type RateLimitsApi = {
   get: () => Promise<RateLimitState>

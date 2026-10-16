@@ -76,6 +76,8 @@ import type { ClaudeUsageStore } from '../../claude-usage/store'
 import type { CodexUsageStore } from '../../codex-usage/store'
 import type { OpenCodeUsageStore } from '../../opencode-usage/store'
 import type { MuseUsageStore } from '../../muse-usage/store'
+import type { AntigravityUsageStore } from '../../antigravity-usage/store'
+import type { CursorUsageStore } from '../../cursor-usage/store'
 import type { RateLimitService } from '../../rate-limits/service'
 import type { CodexAccountService } from '../../codex-accounts/service'
 import type { ClaudeAccountService } from '../../claude-accounts/service'
@@ -133,6 +135,8 @@ export function registerCoreHandlers(
   codexUsage: CodexUsageStore,
   openCodeUsage: OpenCodeUsageStore,
   museUsage: MuseUsageStore,
+  antigravityUsage: AntigravityUsageStore,
+  cursorUsage: CursorUsageStore,
   codexAccounts: CodexAccountService,
   claudeAccounts: ClaudeAccountService,
   rateLimits: RateLimitService,
@@ -166,7 +170,14 @@ export function registerCoreHandlers(
   })
   registerCliHandlers()
   registerPreflightHandlers()
-  registerUsageProviderHandlers({ claudeUsage, codexUsage, openCodeUsage, museUsage })
+  registerUsageProviderHandlers({
+    claudeUsage,
+    codexUsage,
+    openCodeUsage,
+    museUsage,
+    antigravityUsage,
+    cursorUsage
+  })
   registerCodexAccountHandlers(codexAccounts, () => store.getSettings())
   registerAgentHookHandlers(runtime, { getPtyIdForPaneKey })
   registerCodexConfigSyncHandlers(codexAccounts.runtimeHomeService)

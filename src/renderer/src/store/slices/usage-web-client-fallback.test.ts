@@ -22,7 +22,9 @@ function stubWebClientFallback(): void {
       claudeUsage: provider,
       codexUsage: provider,
       openCodeUsage: provider,
-      museUsage: provider
+      museUsage: provider,
+      antigravityUsage: provider,
+      cursorUsage: provider
     }
   })
 }
