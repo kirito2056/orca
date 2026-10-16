@@ -1,153 +1,243 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { setMainHttpClient } from '../network/http-client'
 
-const netFetchMock = vi.hoisted(() => vi.fn())
+const fetchMock = vi.fn()
 
-vi.mock('electron', () => ({
-  net: { fetch: netFetchMock }
-}))
+import { fetchCursorRateLimits } from './cursor-fetcher'
+import type { CursorAuthReadResult } from './cursor-auth'
+import { parseCursorSessionToken } from './cursor-session-token'
 
-import { fetchCursorRateLimits, mapCursorUsageSummary } from './cursor-fetcher'
-import type { CursorAuthReadResult, CursorAuthSession } from './cursor-auth'
+setMainHttpClient({ fetch: fetchMock, proxySession: () => null })
 
-function jsonResponse(body: unknown, status = 200): Response {
+type JwtSegment = Record<string, unknown>
+
+function jwt(exp: number): string {
+  const encode = (value: JwtSegment): string =>
+    Buffer.from(JSON.stringify(value)).toString('base64url')
+  return `${encode({ alg: 'RS256' })}.${encode({ sub: 'auth0|user_1', exp })}.signature`
+}
+
+function session(expSeconds = 4_000_000_000): CursorAuthReadResult {
   return {
+    status: 'ok',
+    session: {
+      token: parseCursorSessionToken(jwt(expSeconds))!,
+      source: 'keychain',
+      email: 'dev@example.com',
+      displayName: 'Dev',
+      membershipType: null,
+      subscriptionStatus: null
+    }
+  }
+}
+
+type FakeResponse = Pick<Response, 'ok' | 'status'> & {
+  headers: Pick<Headers, 'get'>
+  json: () => Promise<unknown>
+}
+
+function fakeResponse(response: FakeResponse): Response {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the fetcher only reads ok/status/headers.get/json, all of which FakeResponse provides.
+  return response as unknown as Response
+}
+
+function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
+  return fakeResponse({
     ok: status >= 200 && status < 300,
     status,
+    headers: { get: (name: string) => headers[name.toLowerCase()] ?? null },
     json: async () => body
-  } as Response
+  })
 }
 
-const SESSION: CursorAuthSession = {
-  accessToken: 'access-token',
-  userId: 'user_01ABC',
-  expiresAtMs: Date.now() + 60 * 60 * 1000
-}
-
-const OK_AUTH: CursorAuthReadResult = { status: 'ok', session: SESSION }
-
-const USAGE_SUMMARY = {
-  billingCycleStart: '2026-08-17T08:54:33.000Z',
-  billingCycleEnd: '2026-09-17T08:54:33.000Z',
+const SUMMARY = {
+  billingCycleStart: '2026-09-01T00:00:00.000Z',
+  billingCycleEnd: '2026-10-01T00:00:00.000Z',
   membershipType: 'pro',
-  limitType: 'user',
-  isUnlimited: false,
   individualUsage: {
-    plan: {
-      enabled: true,
-      used: 1618,
-      limit: 2000,
-      remaining: 382,
-      autoPercentUsed: 3.5955,
-      apiPercentUsed: 12.5,
-      totalPercentUsed: 3.2686
-    },
-    onDemand: { enabled: false, used: 0, limit: null, remaining: null }
-  },
-  teamUsage: {}
+    plan: { enabled: true, used: 2_500, limit: 5_000, autoPercentUsed: 40, apiPercentUsed: 12 }
+  }
 }
 
-describe('fetchCursorRateLimits', () => {
-  beforeEach(() => {
-    netFetchMock.mockReset()
-  })
-
-  it('returns unavailable when not signed in', async () => {
-    const result = await fetchCursorRateLimits({ authReadResult: { status: 'missing' } })
-    expect(result.provider).toBe('cursor')
-    expect(result.status).toBe('unavailable')
-    expect(netFetchMock).not.toHaveBeenCalled()
-  })
-
-  it('surfaces auth file read errors', async () => {
-    const result = await fetchCursorRateLimits({
-      authReadResult: { status: 'error', error: 'Cursor auth file is invalid' }
-    })
-    expect(result.status).toBe('error')
-    expect(result.error).toBe('Cursor auth file is invalid')
-  })
-
-  it('asks the user to re-run the CLI when the token is expired', async () => {
-    const result = await fetchCursorRateLimits({
-      authReadResult: { status: 'ok', session: { ...SESSION, expiresAtMs: Date.now() - 1 } }
-    })
-    expect(result.status).toBe('error')
-    expect(result.usageMetadata?.failureKind).toBe('delegated-refresh-required')
-    expect(netFetchMock).not.toHaveBeenCalled()
-  })
-
-  it('maps Cursor models and other models pools to named buckets', async () => {
-    netFetchMock.mockResolvedValueOnce(jsonResponse(USAGE_SUMMARY))
-
-    const result = await fetchCursorRateLimits({ authReadResult: OK_AUTH })
-    expect(result.status).toBe('ok')
-    expect(result.buckets?.map((bucket) => [bucket.name, bucket.usedPercent])).toEqual([
-      ['Cursor models', 3.5955],
-      ['Other models', 12.5]
-    ])
-    expect(result.monthly?.usedPercent).toBe(3.2686)
-    expect(result.monthly?.resetsAt).toBe(Date.parse('2026-09-17T08:54:33.000Z'))
-    expect(result.monthly?.windowMinutes).toBe(31 * 24 * 60)
-    expect(result.usageMetadata?.authProvenance).toBe('user_01ABC (pro)')
-
-    expect(netFetchMock).toHaveBeenCalledWith(
-      'https://cursor.com/api/usage-summary',
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Cookie: 'WorkosCursorSessionToken=user_01ABC%3A%3Aaccess-token'
-        })
-      })
-    )
-  })
-
-  it('reports unauthorized responses as errors', async () => {
-    netFetchMock.mockResolvedValueOnce(jsonResponse({}, 401))
-
-    const result = await fetchCursorRateLimits({ authReadResult: OK_AUTH })
-    expect(result.status).toBe('error')
-    expect(result.error).toContain('HTTP 401')
-  })
-
-  it('reports network failures as errors', async () => {
-    netFetchMock.mockRejectedValueOnce(new Error('fetch failed'))
-
-    const result = await fetchCursorRateLimits({ authReadResult: OK_AUTH })
-    expect(result.status).toBe('error')
-    expect(result.error).toBe('fetch failed')
-  })
+beforeEach(() => {
+  fetchMock.mockReset()
 })
 
-describe('mapCursorUsageSummary', () => {
-  it('hides the bar for unlimited plans', () => {
-    expect(mapCursorUsageSummary({ isUnlimited: true }, SESSION).status).toBe('unavailable')
+describe('fetchCursorRateLimits', () => {
+  it('publishes both plan pools and the cycle reset', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(SUMMARY))
+    const limits = await fetchCursorRateLimits({ authReadResult: session() })
+    expect(limits.status).toBe('ok')
+    expect(limits.monthly?.usedPercent).toBe(50)
+    expect(limits.buckets?.map((bucket) => bucket.name)).toEqual(['Cursor Models', 'Other Models'])
+    expect(limits.planType).toBe('pro')
+    expect(limits.usageMetadata).toMatchObject({ source: 'cli', credentialSource: 'keychain' })
   })
 
-  it('hides the bar when plan usage is disabled', () => {
-    expect(
-      mapCursorUsageSummary({ individualUsage: { plan: { enabled: false } } }, SESSION).status
-    ).toBe('unavailable')
+  it('sends the origin headers the dashboard checks as CSRF defence', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(SUMMARY))
+    await fetchCursorRateLimits({ authReadResult: session() })
+    const [url, init] = fetchMock.mock.calls[0] ?? []
+    expect(url).toBe('https://cursor.com/api/usage-summary')
+    expect(init?.credentials).toBe('omit')
+    expect(init?.headers).toMatchObject({
+      Origin: 'https://cursor.com',
+      Referer: 'https://cursor.com/dashboard',
+      Cookie: expect.stringContaining('WorkosCursorSessionToken=auth0%7Cuser_1%3A%3A')
+    })
   })
 
-  it('derives the total from used/limit when no percentage is reported', () => {
-    const result = mapCursorUsageSummary(
-      { individualUsage: { plan: { enabled: true, used: 500, limit: 2000 } } },
-      SESSION
-    )
-    expect(result.status).toBe('ok')
-    expect(result.buckets).toBeUndefined()
-    expect(result.monthly?.usedPercent).toBe(25)
-    expect(result.monthly?.windowMinutes).toBe(43_200)
+  it('reports an expired session without spending a request that must 401', async () => {
+    const limits = await fetchCursorRateLimits({ authReadResult: session(1_000) })
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(limits.status).toBe('error')
+    expect(limits.usageMetadata?.failureKind).toBe('stale-token')
+    expect(limits.error).toContain('cursor-agent login')
   })
 
-  it('clamps percentages into the 0-100 range', () => {
-    const result = mapCursorUsageSummary(
-      {
-        individualUsage: {
-          plan: { enabled: true, autoPercentUsed: 140, apiPercentUsed: -3, totalPercentUsed: 101 }
+  it('tells a signed-out user how to sign in, without painting an error bar', async () => {
+    const limits = await fetchCursorRateLimits({ authReadResult: { status: 'missing' } })
+    expect(limits.status).toBe('unavailable')
+    expect(limits.usageMetadata?.failureKind).toBe('missing-credentials')
+  })
+
+  it('surfaces a credential read failure', async () => {
+    const limits = await fetchCursorRateLimits({
+      authReadResult: { status: 'error', error: 'Unable to read the Cursor CLI auth file' }
+    })
+    expect(limits.status).toBe('error')
+    expect(limits.error).toBe('Unable to read the Cursor CLI auth file')
+  })
+
+  it('treats a rejected session as expired sign-in and records a capped Retry-After on 429', async () => {
+    vi.useFakeTimers({ now: Date.parse('2026-10-13T12:00:00Z') })
+    try {
+      fetchMock.mockResolvedValueOnce(jsonResponse({}, 401))
+      expect(
+        (await fetchCursorRateLimits({ authReadResult: session() })).usageMetadata?.failureKind
+      ).toBe('stale-token')
+
+      fetchMock.mockResolvedValueOnce(jsonResponse({}, 429, { 'retry-after': '60' }))
+      const limited = await fetchCursorRateLimits({ authReadResult: session() })
+      expect(limited.usageMetadata?.failureKind).toBe('rate-limited')
+      expect(limited.usageMetadata?.retryAtMs).toBe(Date.now() + 60_000)
+
+      fetchMock.mockResolvedValueOnce(jsonResponse({}, 429, { 'retry-after': '99999999' }))
+      const capped = await fetchCursorRateLimits({ authReadResult: session() })
+      expect(capped.usageMetadata?.retryAtMs).toBe(Date.now() + 24 * 60 * 60 * 1000)
+
+      const retryAt = Date.now() + 5 * 60_000
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse({}, 429, { 'retry-after': new Date(retryAt).toUTCString() })
+      )
+      const dated = await fetchCursorRateLimits({ authReadResult: session() })
+      expect(dated.usageMetadata?.retryAtMs).toBe(retryAt)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each([403, 302, 304])('reports HTTP %i without claiming the login expired', async (status) => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({}, status, { location: '/login' }))
+    const limits = await fetchCursorRateLimits({ authReadResult: session() })
+    expect(limits.usageMetadata?.failureKind).toBe('server')
+    expect(limits.error).toBe(`Cursor usage request failed (HTTP ${status})`)
+    expect(limits.usageMetadata?.authProvenance).toBeTruthy()
+    expect(fetchMock.mock.calls[0]?.[1]?.redirect).toBe('manual')
+  })
+
+  it('preserves a forbidden response from the legacy usage endpoint', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ membershipType: 'free' }))
+      .mockResolvedValueOnce(jsonResponse({}, 403))
+    const limits = await fetchCursorRateLimits({ authReadResult: session() })
+    expect(limits.error).toBe('Cursor usage request failed (HTTP 403)')
+    expect(limits.usageMetadata?.failureKind).toBe('server')
+  })
+
+  it('names the account on failures too, so an account switch can clear stale figures', async () => {
+    // Why: the service drops a previous account's numbers only when the fresh
+    // result names an account. A switch whose first refresh fails is exactly when
+    // that matters, so every failure holding a readable session carries it.
+    const ok = jsonResponse(SUMMARY)
+    fetchMock.mockResolvedValueOnce(ok)
+    const success = await fetchCursorRateLimits({ authReadResult: session() })
+    const fingerprint = success.usageMetadata?.authProvenance
+    expect(fingerprint).toBeTruthy()
+
+    for (const [status, headers] of [
+      [401, {}],
+      [429, { 'retry-after': '60' }],
+      [503, {}]
+    ] as const) {
+      fetchMock.mockResolvedValueOnce(jsonResponse({}, status, headers))
+      const failure = await fetchCursorRateLimits({ authReadResult: session() })
+      expect(failure.status).toBe('error')
+      expect(failure.usageMetadata?.authProvenance).toBe(fingerprint)
+    }
+
+    const expired = await fetchCursorRateLimits({ authReadResult: session(1_000) })
+    expect(expired.usageMetadata?.authProvenance).toBe(fingerprint)
+  })
+
+  it('leaves the account unnamed when no session could be read', async () => {
+    const missing = await fetchCursorRateLimits({ authReadResult: { status: 'missing' } })
+    expect(missing.usageMetadata?.authProvenance).toBeUndefined()
+  })
+
+  it('reports a server failure with its status code', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({}, 503))
+    const limits = await fetchCursorRateLimits({ authReadResult: session() })
+    expect(limits.error).toBe('Cursor usage request failed (HTTP 503)')
+    expect(limits.usageMetadata?.failureKind).toBe('server')
+  })
+
+  it('classifies an unparseable body as a parse failure, not as usage', async () => {
+    fetchMock.mockResolvedValueOnce(
+      fakeResponse({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => {
+          throw new Error('invalid json')
         }
-      },
-      SESSION
+      })
     )
-    expect(result.buckets?.map((bucket) => bucket.usedPercent)).toEqual([100, 0])
-    expect(result.monthly?.usedPercent).toBe(100)
+    const limits = await fetchCursorRateLimits({ authReadResult: session() })
+    expect(limits.usageMetadata?.failureKind).toBe('parse')
+  })
+
+  it('publishes an unlimited plan with no misleading bar', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ isUnlimited: true, membershipType: 'ultra' }))
+    const limits = await fetchCursorRateLimits({ authReadResult: session() })
+    expect(limits.status).toBe('ok')
+    expect(limits.monthly).toBeUndefined()
+    expect(limits.planType).toBe('ultra')
+  })
+
+  it('falls back to the request-quota endpoint before declaring no allowance', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ membershipType: 'free' }))
+      .mockResolvedValueOnce(jsonResponse({ 'gpt-4': { numRequests: 25, maxRequestUsage: 50 } }))
+    const limits = await fetchCursorRateLimits({ authReadResult: session() })
+    expect(limits.status).toBe('ok')
+    expect(limits.monthly?.usedPercent).toBe(50)
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('https://cursor.com/api/usage?user=auth0%7Cuser_1')
+  })
+
+  it('hides the bar for an account with no quota rather than alerting forever', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ membershipType: 'free' }))
+      .mockResolvedValueOnce(jsonResponse({}))
+    const limits = await fetchCursorRateLimits({ authReadResult: session() })
+    expect(limits.status).toBe('unavailable')
+    expect(limits.usageMetadata?.failureKind).toBe('usage-unavailable')
+  })
+
+  it('reports a network failure without leaking the request internals', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('getaddrinfo ENOTFOUND cursor.com'))
+    const limits = await fetchCursorRateLimits({ authReadResult: session() })
+    expect(limits.error).toBe('Cursor usage request failed')
+    expect(limits.usageMetadata?.failureKind).toBe('network')
   })
 })

@@ -1,5 +1,8 @@
 import type { CodexUsageSummary } from '../../../../shared/codex-usage-types'
 import type { OpenCodeUsageSummary } from '../../../../shared/opencode-usage-types'
+import type { MuseUsageSummary } from '../../../../shared/muse-usage-types'
+import type { AntigravityUsageSummary } from '../../../../shared/antigravity-usage-types'
+import type { CursorUsageSummary } from '../../../../shared/cursor-usage-types'
 import { countActiveDays, getClaudeDailyTotal } from './usage-overview-daily-series'
 import type { UsageOverviewInput, UsageProviderOverview } from './usage-overview-types'
 import { translate } from '@/i18n/i18n'
@@ -11,7 +14,16 @@ function getCodexNewInputTokens(summary: CodexUsageSummary | null): number {
   return Math.max(summary.inputTokens - summary.cachedInputTokens, 0)
 }
 
-function getOpenCodeNewInputTokens(summary: OpenCodeUsageSummary | null): number {
+function getMuseNewInputTokens(summary: MuseUsageSummary | AntigravityUsageSummary | null): number {
+  if (!summary) {
+    return 0
+  }
+  return Math.max(summary.inputTokens - summary.cachedInputTokens, 0)
+}
+
+function getOpenCodeNewInputTokens(
+  summary: OpenCodeUsageSummary | CursorUsageSummary | null
+): number {
   if (!summary) {
     return 0
   }
@@ -45,6 +57,7 @@ export function createClaudeProvider(input: UsageOverviewInput['claude']): Usage
     cacheTokens: summary ? summary.cacheReadTokens + summary.cacheWriteTokens : 0,
     reasoningTokens: 0,
     estimatedCostUsd: summary?.estimatedCostUsd ?? null,
+    hasPartialCost: false,
     topModel: summary?.topModel ?? null,
     topProject: summary?.topProject ?? null,
     activeDays: countActiveDays(dailyActiveDays)
@@ -73,6 +86,7 @@ export function createCodexProvider(input: UsageOverviewInput['codex']): UsagePr
     cacheTokens: summary?.cachedInputTokens ?? 0,
     reasoningTokens: summary?.reasoningOutputTokens ?? 0,
     estimatedCostUsd: summary?.estimatedCostUsd ?? null,
+    hasPartialCost: summary?.hasUnpricedModels ?? false,
     topModel: summary?.topModel ?? null,
     topProject: summary?.topProject ?? null,
     activeDays: countActiveDays(dailyActiveDays)
@@ -103,6 +117,97 @@ export function createOpenCodeProvider(
     cacheTokens: summary?.cachedInputTokens ?? 0,
     reasoningTokens: summary?.reasoningOutputTokens ?? 0,
     estimatedCostUsd: summary?.estimatedCostUsd ?? null,
+    hasPartialCost: false,
+    topModel: summary?.topModel ?? null,
+    topProject: summary?.topProject ?? null,
+    activeDays: countActiveDays(dailyActiveDays)
+  }
+}
+
+export function createMuseProvider(input: UsageOverviewInput['muse']): UsageProviderOverview {
+  const summary = input.summary
+  const dailyActiveDays = input.daily
+    .filter((entry) => entry.totalTokens > 0)
+    .map((entry) => entry.day)
+  return {
+    id: 'muse',
+    label: translate('auto.lib.agent.catalog.muse_label', 'Muse'),
+    enabled: input.scanState?.enabled ?? false,
+    isScanning: input.scanState?.isScanning ?? false,
+    hasData: summary?.hasAnyMuseData ?? input.scanState?.hasAnyMuseData ?? false,
+    lastScanCompletedAt: input.scanState?.lastScanCompletedAt ?? null,
+    lastScanError: input.scanState?.lastScanError ?? null,
+    sessions: summary?.sessions ?? 0,
+    activityLabel: 'events',
+    activityCount: summary?.events ?? 0,
+    totalTokens: summary?.totalTokens ?? 0,
+    newInputTokens: getMuseNewInputTokens(summary),
+    outputTokens: summary?.outputTokens ?? 0,
+    cacheTokens: summary?.cachedInputTokens ?? 0,
+    reasoningTokens: summary?.reasoningOutputTokens ?? 0,
+    // Muse logs carry no price.
+    estimatedCostUsd: null,
+    hasPartialCost: false,
+    topModel: summary?.topModel ?? null,
+    topProject: summary?.topProject ?? null,
+    activeDays: countActiveDays(dailyActiveDays)
+  }
+}
+
+export function createAntigravityProvider(
+  input: UsageOverviewInput['antigravity']
+): UsageProviderOverview {
+  const summary = input.summary
+  const dailyActiveDays = input.daily
+    .filter((entry) => entry.totalTokens > 0)
+    .map((entry) => entry.day)
+  return {
+    id: 'antigravity',
+    label: translate('auto.lib.agent.catalog.691dd11789', 'Antigravity'),
+    enabled: input.scanState?.enabled ?? false,
+    isScanning: input.scanState?.isScanning ?? false,
+    hasData: summary?.hasAnyAntigravityData ?? input.scanState?.hasAnyAntigravityData ?? false,
+    lastScanCompletedAt: input.scanState?.lastScanCompletedAt ?? null,
+    lastScanError: input.scanState?.lastScanError ?? null,
+    sessions: summary?.sessions ?? 0,
+    activityLabel: 'events',
+    activityCount: summary?.events ?? 0,
+    totalTokens: summary?.totalTokens ?? 0,
+    newInputTokens: getMuseNewInputTokens(summary),
+    outputTokens: summary?.outputTokens ?? 0,
+    cacheTokens: summary?.cachedInputTokens ?? 0,
+    reasoningTokens: summary?.reasoningOutputTokens ?? 0,
+    estimatedCostUsd: null,
+    hasPartialCost: false,
+    topModel: summary?.topModel ?? null,
+    topProject: summary?.topProject ?? null,
+    activeDays: countActiveDays(dailyActiveDays)
+  }
+}
+
+export function createCursorProvider(input: UsageOverviewInput['cursor']): UsageProviderOverview {
+  const summary = input.summary
+  const dailyActiveDays = input.daily
+    .filter((entry) => entry.totalTokens > 0)
+    .map((entry) => entry.day)
+  return {
+    id: 'cursor',
+    label: translate('auto.lib.agent.catalog.667c104cff', 'Cursor'),
+    enabled: input.scanState?.enabled ?? false,
+    isScanning: input.scanState?.isScanning ?? false,
+    hasData: summary?.hasAnyCursorData ?? input.scanState?.hasAnyCursorData ?? false,
+    lastScanCompletedAt: input.scanState?.lastScanCompletedAt ?? null,
+    lastScanError: input.scanState?.lastScanError ?? null,
+    sessions: summary?.sessions ?? 0,
+    activityLabel: 'events',
+    activityCount: summary?.events ?? 0,
+    totalTokens: summary?.totalTokens ?? 0,
+    newInputTokens: getOpenCodeNewInputTokens(summary),
+    outputTokens: summary?.outputTokens ?? 0,
+    cacheTokens: summary?.cachedInputTokens ?? 0,
+    reasoningTokens: summary?.reasoningOutputTokens ?? 0,
+    estimatedCostUsd: summary?.estimatedCostUsd ?? null,
+    hasPartialCost: false,
     topModel: summary?.topModel ?? null,
     topProject: summary?.topProject ?? null,
     activeDays: countActiveDays(dailyActiveDays)

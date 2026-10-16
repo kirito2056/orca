@@ -2,11 +2,14 @@ import type { RuntimeRpcResponse } from '../../../../shared/runtime-rpc-envelope
 import type { RuntimeMobileSessionTabsResult } from '../../../../shared/runtime-types'
 import { isRuntimeSubscriptionReplayResponse } from '../../../../shared/runtime-subscription-replay'
 import { useAppStore } from '../../store'
+import { getExplicitRuntimeEnvironmentIdForWorktree } from '../../lib/worktree-runtime-owner'
 import { getRuntimeEnvironmentRevision } from '../runtime-environment-revision'
 import { recoverWebSessionTerminalOrphansBeforeApply } from '../web-session-terminal-orphan-recovery'
-import { installWindowVisibilitySubscriptionParking } from '../window-visibility-subscription-parking'
 import {
-  beginWebSessionTabsSnapshotRecovery,
+  installWindowVisibilitySubscriptionParking,
+  type WindowVisibilitySubscriptionParking
+} from '../window-visibility-subscription-parking'
+import {
   recordReceivedWebSessionTabsSnapshot,
   shouldApplyRecoveredWebSessionTabsSnapshot
 } from './tracking'
@@ -35,9 +38,17 @@ import {
   endWebRuntimeWakeTerminalRespawn,
   shouldSkipWebRuntimeWakeTerminalRespawn
 } from '../web-runtime-wake-terminal-respawn'
-import { createWebRuntimeSessionTerminal } from '../web-runtime-session'
+import { createWebRuntimeSessionTerminal } from '../web-runtime-terminal-creation'
+import {
+  isWebRuntimeInitialTerminalBootstrapInFlight,
+  releaseWebRuntimeInitialTerminalBootstrapOnMirrorFrame
+} from '../web-runtime-initial-terminal-bootstrap'
+import { dispatchWebRuntimeInitialTerminalBootstrap } from '../web-runtime-initial-terminal-bootstrap-dispatch'
 import { toRuntimeWorktreeSelector } from '../runtime-worktree-selector'
-import type { SessionTabsStreamEvent } from './state'
+import { hostSnapshotAffirmsWorktreeContents } from '../host-session-snapshot-authority'
+import { isSessionTabsStreamEnd, type SessionTabsStreamEvent } from './state'
+import type { SessionTabsSnapshotHandler } from './visibility-resume-types'
+import { subscribeRuntimeEnvironment } from '../runtime-environment-pairing-refresh'
 
 type Ref<T> = { current: T }
 
@@ -47,33 +58,12 @@ export type ActiveSubscriptionArgs = {
   activeWorktreeRuntimeConnectionGeneration: number
   activeWorktreeRuntimePairingRevision: number | undefined
   workspaceSessionReady: boolean
-  visibilitySnapshotReceipt: Ref<
-    (
-      environmentId: string,
-      snapshot: RuntimeMobileSessionTabsResult,
-      receivedFrame: number,
-      runtimeId?: string
-    ) => void
-  >
-  visibilitySnapshotApply: Ref<
-    (
-      environmentId: string,
-      snapshot: RuntimeMobileSessionTabsResult,
-      receivedFrame: number,
-      runtimeId?: string
-    ) => boolean
-  >
-  visibilitySnapshotAccepted: Ref<
-    (
-      environmentId: string,
-      snapshot: RuntimeMobileSessionTabsResult,
-      receivedFrame: number,
-      runtimeId?: string
-    ) => void
-  >
+  visibilitySnapshotReceipt: Ref<SessionTabsSnapshotHandler<void>>
+  visibilitySnapshotApply: Ref<SessionTabsSnapshotHandler<boolean>>
+  visibilitySnapshotAccepted: Ref<SessionTabsSnapshotHandler<void>>
 }
 
-/** Install the selected-worktree stream, which resumes immediately on visibility changes. */
+/** Install one worktree's stream, which resumes immediately on visibility changes. */
 export function installActiveSessionTabsSubscription({
   activeWorktreeId,
   activeWorktreeRuntimeEnvironmentId,
@@ -83,7 +73,7 @@ export function installActiveSessionTabsSubscription({
   visibilitySnapshotReceipt,
   visibilitySnapshotApply,
   visibilitySnapshotAccepted
-}: ActiveSubscriptionArgs): (() => void) | undefined {
+}: ActiveSubscriptionArgs): WindowVisibilitySubscriptionParking | undefined {
   const environmentId = activeWorktreeRuntimeEnvironmentId?.trim()
   if (
     !shouldSyncRuntimeSessionTabs({
@@ -97,8 +87,18 @@ export function installActiveSessionTabsSubscription({
     return undefined
   }
   const expectedTrackingGeneration = getWebSessionTabsTrackingGeneration(environmentId)
+  // Why: a warm stream keeps running after the user switches away; only the selected worktree on
+  // this host may seed (one worktree id can exist on two hosts).
+  const isSelected = (): boolean => {
+    const state = useAppStore.getState()
+    return (
+      state.activeWorktreeId === activeWorktreeId &&
+      getExplicitRuntimeEnvironmentIdForWorktree(state, activeWorktreeId)?.trim() === environmentId
+    )
+  }
   let requestedInitialTerminal = false
   let requestedRespawnAfterWake = false
+  let hostAffirmedWorktree = false
 
   const applyActiveSnapshot = async (
     event: RuntimeMobileSessionTabsResult & { type: 'snapshot' | 'updated' },
@@ -143,9 +143,18 @@ export function installActiveSessionTabsSubscription({
     const bootstrap = shouldBootstrapInitialWebRuntimeTerminal({
       event: recoveredEvent,
       activeWorktreeId,
-      requestedInitialTerminal,
+      // Why both: the closure flag records that this subscription already owned a create, so the
+      // same closure never seeds twice even once the shared latch is released; a create that threw
+      // never set it, so a later frame may retry. The shared latch is what survives the effect
+      // re-runs a workspace switch triggers — without it a second closure seeds a second terminal
+      // while the first create is still in flight (STA-6173).
+      requestedInitialTerminal:
+        requestedInitialTerminal ||
+        isWebRuntimeInitialTerminalBootstrapInFlight(environmentId, activeWorktreeId),
       snapshotIsFresh: decision.apply,
-      localTerminalCount
+      localTerminalCount,
+      hasPersistedTerminalState: Object.hasOwn(syncState.tabsByWorktree, activeWorktreeId),
+      firstHostAnswer: !hostAffirmedWorktree
     })
     const respawn = shouldRespawnWebRuntimeTerminalAfterWake({
       event: recoveredEvent,
@@ -164,6 +173,7 @@ export function installActiveSessionTabsSubscription({
           trackingGeneration: expectedTrackingGeneration
         })
     if (decision.apply) {
+      hostAffirmedWorktree ||= hostSnapshotAffirmsWorktreeContents(recovered)
       const replayed = isRuntimeSubscriptionReplayResponse(response)
       settle = applyWebSessionTabsStorePatch(
         (state) => applyWebSessionTabsSnapshot(state, recovered, environmentId),
@@ -183,16 +193,24 @@ export function installActiveSessionTabsSubscription({
         event.type === 'updated' && !replayed
       )
       visibilitySnapshotAccepted.current(environmentId, recovered, receivedFrame, runtimeId)
+      // Why here and only on an applied frame: this is the mirror's answer about the worktree. A
+      // bootstrap whose create resolved without a row was parked until that answer arrived; a
+      // pending create keeps its claim (see the latch module). The predicate above already ran with
+      // the latch held, so this frame never seeds — the next one decides on real state.
+      releaseWebRuntimeInitialTerminalBootstrapOnMirrorFrame(environmentId, recovered.worktree)
     }
     try {
-      if (isCurrent() && bootstrap) {
-        requestedInitialTerminal = true
-        await createWebRuntimeSessionTerminal({
-          worktreeId: activeWorktreeId,
-          environmentId,
-          activate: true
-        })
-      } else if (isCurrent() && respawn && beginWebRuntimeWakeTerminalRespawn(activeWorktreeId)) {
+      if (isCurrent() && isSelected() && bootstrap) {
+        // Latch claim, create, and row-conditional release live in the dispatch helper.
+        if (await dispatchWebRuntimeInitialTerminalBootstrap(environmentId, activeWorktreeId)) {
+          requestedInitialTerminal = true
+        }
+      } else if (
+        isCurrent() &&
+        isSelected() &&
+        respawn &&
+        beginWebRuntimeWakeTerminalRespawn(activeWorktreeId)
+      ) {
         requestedRespawnAfterWake = true
         await createWebRuntimeSessionTerminal({
           worktreeId: activeWorktreeId,
@@ -211,8 +229,8 @@ export function installActiveSessionTabsSubscription({
 
   return installWindowVisibilitySubscriptionParking([
     {
-      subscribe: (isCurrent) =>
-        window.api.runtimeEnvironments.subscribe(
+      subscribe: (isCurrent, { ended }) =>
+        subscribeRuntimeEnvironment(
           {
             selector: environmentId,
             method: 'session.tabs.subscribe',
@@ -231,6 +249,11 @@ export function installActiveSessionTabsSubscription({
               }
               if (response.ok === false) {
                 console.warn('[web-session-tabs-sync] subscription failed:', response.error.message)
+                ended()
+                return
+              }
+              if (isSessionTabsStreamEnd(response.result)) {
+                ended()
                 return
               }
               const event = response.result as SessionTabsStreamEvent
@@ -248,11 +271,6 @@ export function installActiveSessionTabsSubscription({
                 runtimeId
               )
               visibilitySnapshotReceipt.current(environmentId, event, frame, runtimeId)
-              const finish = beginWebSessionTabsSnapshotRecovery(
-                environmentId,
-                event.worktree,
-                frame
-              )
               void applyActiveSnapshot(event, response, isCurrent, frame, runtimeId)
                 .catch((error) => {
                   if (isCurrent()) {
@@ -261,7 +279,6 @@ export function installActiveSessionTabsSubscription({
                   return null
                 })
                 .then((settle) => {
-                  finish()
                   if (isCurrent()) {
                     settle?.()
                   }
@@ -270,6 +287,11 @@ export function installActiveSessionTabsSubscription({
             onError: (error) => {
               if (isCurrent()) {
                 console.warn('[web-session-tabs-sync] subscription error:', error.message)
+              }
+            },
+            onClose: () => {
+              if (isCurrent()) {
+                ended()
               }
             }
           }

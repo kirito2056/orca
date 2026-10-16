@@ -6,6 +6,9 @@ import { ClaudeUsagePane } from './ClaudeUsagePane'
 import { CodexUsagePane } from './CodexUsagePane'
 import { GrokUsagePane } from './GrokUsagePane'
 import { OpenCodeUsagePane } from './OpenCodeUsagePane'
+import { MuseUsagePane } from './MuseUsagePane'
+import { AntigravityUsagePane } from './AntigravityUsagePane'
+import { CursorUsagePane } from './CursorUsagePane'
 import { UsageOverviewPane } from './UsageOverviewPane'
 import { Button } from '../ui/button'
 import {
@@ -52,7 +55,15 @@ function formatTrackingSince(timestamp: number | null): string {
   })
 }
 
-type UsageTab = 'overview' | 'claude' | 'codex' | 'opencode' | 'grok'
+type UsageTab =
+  | 'overview'
+  | 'claude'
+  | 'codex'
+  | 'opencode'
+  | 'muse'
+  | 'antigravity'
+  | 'cursor'
+  | 'grok'
 
 const USAGE_ANALYTICS_OPTIONS = [
   {
@@ -77,6 +88,24 @@ const USAGE_ANALYTICS_OPTIONS = [
     id: 'opencode',
     get label() {
       return translate('auto.components.stats.StatsPane.1e696db2f6', 'OpenCode')
+    }
+  },
+  {
+    id: 'muse',
+    get label() {
+      return translate('auto.lib.agent.catalog.muse_label', 'Muse')
+    }
+  },
+  {
+    id: 'antigravity',
+    get label() {
+      return translate('auto.lib.agent.catalog.691dd11789', 'Antigravity')
+    }
+  },
+  {
+    id: 'cursor',
+    get label() {
+      return translate('auto.lib.agent.catalog.667c104cff', 'Cursor')
     }
   },
   {
@@ -208,6 +237,12 @@ export function StatsPane(): React.JSX.Element {
             <CodexUsagePane />
           ) : activeUsageTab === 'opencode' ? (
             <OpenCodeUsagePane />
+          ) : activeUsageTab === 'muse' ? (
+            <MuseUsagePane />
+          ) : activeUsageTab === 'antigravity' ? (
+            <AntigravityUsagePane />
+          ) : activeUsageTab === 'cursor' ? (
+            <CursorUsagePane />
           ) : (
             <GrokUsagePane />
           )}

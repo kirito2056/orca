@@ -11,10 +11,10 @@ export function getCursorStatusBarToggleSearchEntry(): {
 } {
   return {
     id: 'cursor',
-    title: translate('auto.components.settings.appearance.search.cursorUsageTitle', 'Cursor Usage'),
+    title: translate('auto.components.settings.appearance.search.cursor.title', 'Cursor Usage'),
     description: translate(
-      'auto.components.settings.appearance.search.cursorUsageDescription',
-      'Show Cursor models and other models plan usage from Cursor CLI sign-in.'
+      'auto.components.settings.appearance.search.cursor.description',
+      'Show monthly Cursor plan usage from the Cursor sign-in on this computer.'
     ),
     keywords: [
       ...translateSearchKeyword(
@@ -22,7 +22,7 @@ export function getCursorStatusBarToggleSearchEntry(): {
         'status bar'
       ),
       ...translateSearchKeyword(
-        'auto.components.settings.appearance.search.cursorKeyword',
+        'auto.components.settings.appearance.search.cursor.kw.cursor',
         'cursor'
       ),
       ...translateSearchKeyword('auto.components.settings.appearance.search.00a028f25f', 'usage'),
@@ -33,7 +33,7 @@ export function getCursorStatusBarToggleSearchEntry(): {
     ],
     toggleDescription: translate(
       'settings.appearance.statusBar.cursorToggleDescription',
-      'Show Cursor plan usage when signed in via Cursor CLI.'
+      'Show Cursor plan usage when signed in through cursor-agent or Cursor IDE.'
     )
   }
 }

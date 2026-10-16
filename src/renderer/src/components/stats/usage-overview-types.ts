@@ -13,8 +13,23 @@ import type {
   OpenCodeUsageScanState,
   OpenCodeUsageSummary
 } from '../../../../shared/opencode-usage-types'
+import type {
+  MuseUsageDailyPoint,
+  MuseUsageScanState,
+  MuseUsageSummary
+} from '../../../../shared/muse-usage-types'
+import type {
+  AntigravityUsageDailyPoint,
+  AntigravityUsageScanState,
+  AntigravityUsageSummary
+} from '../../../../shared/antigravity-usage-types'
+import type {
+  CursorUsageDailyPoint,
+  CursorUsageScanState,
+  CursorUsageSummary
+} from '../../../../shared/cursor-usage-types'
 
-export type UsageProviderId = 'claude' | 'codex' | 'opencode'
+export type UsageProviderId = 'claude' | 'codex' | 'opencode' | 'muse' | 'antigravity' | 'cursor'
 
 export type UsageProviderOverview = {
   id: UsageProviderId
@@ -33,6 +48,8 @@ export type UsageProviderOverview = {
   cacheTokens: number
   reasoningTokens: number
   estimatedCostUsd: number | null
+  /** The provider priced some of its tokens but not all, so `estimatedCostUsd` understates the bill. */
+  hasPartialCost: boolean
   topModel: string | null
   topProject: string | null
   activeDays: number
@@ -44,6 +61,9 @@ export type UsageOverviewDailyPoint = {
   claudeTokens: number
   codexTokens: number
   openCodeTokens: number
+  museTokens: number
+  antigravityTokens: number
+  cursorTokens: number
   intensity: 0 | 1 | 2 | 3 | 4
 }
 
@@ -84,5 +104,20 @@ export type UsageOverviewInput = {
     scanState: OpenCodeUsageScanState | null
     summary: OpenCodeUsageSummary | null
     daily: OpenCodeUsageDailyPoint[]
+  }
+  muse: {
+    scanState: MuseUsageScanState | null
+    summary: MuseUsageSummary | null
+    daily: MuseUsageDailyPoint[]
+  }
+  antigravity: {
+    scanState: AntigravityUsageScanState | null
+    summary: AntigravityUsageSummary | null
+    daily: AntigravityUsageDailyPoint[]
+  }
+  cursor: {
+    scanState: CursorUsageScanState | null
+    summary: CursorUsageSummary | null
+    daily: CursorUsageDailyPoint[]
   }
 }

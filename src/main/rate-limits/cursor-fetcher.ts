@@ -1,49 +1,47 @@
-import { net } from 'electron'
-import type {
-  ProviderRateLimits,
-  RateLimitBucket,
-  RateLimitWindow,
-  UsageRateLimitMetadata
-} from '../../shared/rate-limit-types'
+import { createHash } from 'node:crypto'
+import { getMainHttpClient } from '../network/http-client'
+import type { ProviderRateLimits, UsageRateLimitSource } from '../../shared/rate-limit-types'
+import { abortSignalWithTimeout } from '../lib/abort-signal-with-timeout'
 import {
-  CURSOR_MODELS_BUCKET_NAME,
-  CURSOR_OTHER_MODELS_BUCKET_NAME
-} from '../../shared/cursor-usage-buckets'
-import {
-  buildCursorSessionCookie,
-  isCursorAccessTokenFresh,
   readCursorAuthSession,
   type CursorAuthReadResult,
   type CursorAuthSession
 } from './cursor-auth'
+import { cursorSessionCookie, isCursorSessionTokenExpired } from './cursor-session-token'
+import {
+  mapCursorLegacyRequestQuota,
+  mapCursorUsageSummary,
+  parseCursorUsageSummary
+} from './cursor-usage-mapping'
+import { parseUsageRetryAfterMs } from './usage-retry-after'
 
-const CURSOR_USAGE_SUMMARY_URL = 'https://cursor.com/api/usage-summary'
+const DASHBOARD_ORIGIN = 'https://cursor.com'
+const USAGE_SUMMARY_URL = `${DASHBOARD_ORIGIN}/api/usage-summary`
+const LEGACY_USAGE_URL = `${DASHBOARD_ORIGIN}/api/usage`
 const API_TIMEOUT_MS = 10_000
-const MONTHLY_WINDOW_MINUTES = 43_200
 
-type CursorPlanUsage = {
-  enabled?: boolean
-  used?: number
-  limit?: number | null
-  autoPercentUsed?: number
-  apiPercentUsed?: number
-  totalPercentUsed?: number
+const SIGNED_OUT_MESSAGE =
+  'No Cursor sign-in on this computer — sign in with Cursor IDE or `cursor-agent login`'
+const EXPIRED_MESSAGE = 'Cursor sign-in expired — run `cursor-agent login` again'
+
+function usageSource(session: CursorAuthSession): UsageRateLimitSource {
+  return session.source === 'desktop' ? 'web' : 'cli'
 }
 
-type CursorUsageSummary = {
-  billingCycleStart?: string
-  billingCycleEnd?: string
-  membershipType?: string
-  isUnlimited?: boolean
-  individualUsage?: {
-    plan?: CursorPlanUsage
-  }
+/**
+ * Stable, non-secret fingerprint of the signed-in account. Hashed because this
+ * rides `usageMetadata` into the renderer and mobile snapshots, where the raw
+ * WorkOS subject would be an account identifier nobody needs to see. Readers
+ * only compare it, so a digest is enough.
+ */
+function accountFingerprint(session: CursorAuthSession): string {
+  return createHash('sha256').update(session.token.subject).digest('hex').slice(0, 12)
 }
 
 function result(
   status: ProviderRateLimits['status'],
   error: string | null,
-  usageMetadata?: UsageRateLimitMetadata
+  extra: Partial<ProviderRateLimits> = {}
 ): ProviderRateLimits {
   return {
     provider: 'cursor',
@@ -52,150 +50,200 @@ function result(
     updatedAt: Date.now(),
     error,
     status,
-    ...(usageMetadata ? { usageMetadata } : {})
+    ...extra
   }
 }
 
-function parseIsoMs(iso: string | undefined): number | null {
-  if (!iso) {
-    return null
-  }
-  const ms = Date.parse(iso)
-  return Number.isFinite(ms) ? ms : null
-}
-
-function parseResetDescription(resetsAt: number | null): string | null {
-  if (resetsAt === null) {
-    return null
-  }
-  const date = new Date(resetsAt)
-  const isToday = date.toDateString() === new Date().toDateString()
-  return isToday
-    ? date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-    : date.toLocaleDateString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })
-}
-
-function clampPercent(value: number): number {
-  return Math.min(100, Math.max(0, value))
-}
-
-function finitePercent(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? clampPercent(value) : null
-}
-
-type CursorBillingCycle = {
-  windowMinutes: number
-  resetsAt: number | null
-  resetDescription: string | null
-}
-
-function resolveBillingCycle(summary: CursorUsageSummary): CursorBillingCycle {
-  const start = parseIsoMs(summary.billingCycleStart)
-  const end = parseIsoMs(summary.billingCycleEnd)
-  const windowMinutes =
-    start !== null && end !== null && end > start
-      ? Math.round((end - start) / 60_000)
-      : MONTHLY_WINDOW_MINUTES
-  return { windowMinutes, resetsAt: end, resetDescription: parseResetDescription(end) }
-}
-
-function windowFor(usedPercent: number, cycle: CursorBillingCycle): RateLimitWindow {
-  return { usedPercent, ...cycle }
-}
-
-function bucketFor(
-  name: string,
-  usedPercent: number | null,
-  cycle: CursorBillingCycle
-): RateLimitBucket | null {
-  return usedPercent === null ? null : { name, ...windowFor(usedPercent, cycle) }
-}
-
-export function mapCursorUsageSummary(
-  summary: CursorUsageSummary,
-  session: CursorAuthSession
-): ProviderRateLimits {
-  if (summary.isUnlimited) {
-    return result('unavailable', 'Cursor plan reports unlimited usage')
-  }
-  const plan = summary.individualUsage?.plan
-  if (!plan || plan.enabled === false) {
-    return result('unavailable', 'Cursor usage summary did not include plan usage')
-  }
-  const cycle = resolveBillingCycle(summary)
-  const buckets = [
-    bucketFor(CURSOR_MODELS_BUCKET_NAME, finitePercent(plan.autoPercentUsed), cycle),
-    bucketFor(CURSOR_OTHER_MODELS_BUCKET_NAME, finitePercent(plan.apiPercentUsed), cycle)
-  ].filter((bucket): bucket is RateLimitBucket => bucket !== null)
-  let total = finitePercent(plan.totalPercentUsed)
-  if (total === null && typeof plan.limit === 'number' && plan.limit > 0) {
-    const used = typeof plan.used === 'number' && Number.isFinite(plan.used) ? plan.used : null
-    total = used === null ? null : clampPercent((used / plan.limit) * 100)
-  }
-  if (buckets.length === 0 && total === null) {
-    return result('unavailable', 'Cursor did not report a usage percentage for this account')
-  }
-  const tier = summary.membershipType?.trim()
-  const authLabel = session.userId ?? 'Cursor account'
+/**
+ * Dashboard routes answer 403 to a bare session cookie — they check the request
+ * origin as CSRF defence. Sending what the dashboard itself sends is what they
+ * expect; without these headers every /api route fails on a valid session.
+ */
+function requestHeaders(session: CursorAuthSession): Record<string, string> {
   return {
-    provider: 'cursor',
-    session: null,
-    weekly: null,
-    ...(total !== null ? { monthly: windowFor(total, cycle) } : {}),
-    ...(buckets.length > 0 ? { buckets } : {}),
-    updatedAt: Date.now(),
-    error: null,
-    status: 'ok',
-    usageMetadata: {
-      source: 'oauth',
-      authProvenance: tier ? `${authLabel} (${tier})` : authLabel
+    Cookie: cursorSessionCookie(session.token),
+    Accept: 'application/json',
+    Origin: DASHBOARD_ORIGIN,
+    Referer: `${DASHBOARD_ORIGIN}/dashboard`
+  }
+}
+
+type FetchOutcome = { kind: 'data'; data: unknown } | { kind: 'result'; result: ProviderRateLimits }
+
+async function fetchDashboardJson(
+  url: string,
+  session: CursorAuthSession,
+  signal?: AbortSignal
+): Promise<FetchOutcome> {
+  const source = usageSource(session)
+  // Why on failures too: the account-switch guard downstream can only drop a
+  // previous account's figures when the fresh result names an account, and a
+  // switch whose first refresh 401s or 5xxs is exactly when it must.
+  const provenance = accountFingerprint(session)
+  const res = await getMainHttpClient().fetch(url, {
+    // Keep dashboard redirects visible without forwarding session credentials.
+    redirect: 'manual',
+    // The selected account's Cookie must not be replaced by Electron's session jar.
+    credentials: 'omit',
+    headers: requestHeaders(session),
+    signal: abortSignalWithTimeout(signal, API_TIMEOUT_MS)
+  })
+  if (res.status === 401) {
+    return {
+      kind: 'result',
+      result: result('error', EXPIRED_MESSAGE, {
+        usageMetadata: {
+          source,
+          credentialSource: session.source,
+          authProvenance: provenance,
+          failureKind: 'stale-token'
+        }
+      })
+    }
+  }
+  if (res.status === 429) {
+    const nowMs = Date.now()
+    const retryAfterMs = parseUsageRetryAfterMs(res.headers.get('retry-after'), nowMs)
+    return {
+      kind: 'result',
+      result: result('error', 'Cursor usage is rate limited right now', {
+        usageMetadata: {
+          source,
+          credentialSource: session.source,
+          authProvenance: provenance,
+          failureKind: 'rate-limited',
+          ...(retryAfterMs !== null ? { retryAtMs: nowMs + retryAfterMs } : {})
+        }
+      })
+    }
+  }
+  if (!res.ok) {
+    return {
+      kind: 'result',
+      result: result('error', `Cursor usage request failed (HTTP ${res.status})`, {
+        usageMetadata: {
+          source,
+          credentialSource: session.source,
+          authProvenance: provenance,
+          failureKind: 'server'
+        }
+      })
+    }
+  }
+  try {
+    return { kind: 'data', data: await res.json() }
+  } catch {
+    return {
+      kind: 'result',
+      result: result('error', 'Cursor usage response could not be parsed', {
+        usageMetadata: {
+          source,
+          credentialSource: session.source,
+          authProvenance: provenance,
+          failureKind: 'parse'
+        }
+      })
     }
   }
 }
 
+function credentialFailure(readResult: CursorAuthReadResult): ProviderRateLimits | null {
+  if (readResult.status === 'missing') {
+    return result('unavailable', SIGNED_OUT_MESSAGE, {
+      usageMetadata: { failureKind: 'missing-credentials' }
+    })
+  }
+  if (readResult.status === 'error') {
+    return result('error', readResult.error, {
+      usageMetadata: { failureKind: 'missing-credentials' }
+    })
+  }
+  // Why: cursor-agent refreshes its own token on use; Orca only reads, so a
+  // lapsed session is reported instead of spending a request that must 401.
+  if (isCursorSessionTokenExpired(readResult.session.token)) {
+    return result('error', EXPIRED_MESSAGE, {
+      usageMetadata: {
+        source: usageSource(readResult.session),
+        credentialSource: readResult.session.source,
+        authProvenance: accountFingerprint(readResult.session),
+        failureKind: 'stale-token'
+      }
+    })
+  }
+  return null
+}
+
+/**
+ * Reads the Cursor plan allowance for the account this machine is signed into.
+ * Orca never runs `cursor-agent login` and never writes Cursor's credentials.
+ */
 export async function fetchCursorRateLimits(
   options: { signal?: AbortSignal; authReadResult?: CursorAuthReadResult } = {}
 ): Promise<ProviderRateLimits> {
-  const readResult = options.authReadResult ?? readCursorAuthSession()
-  if (readResult.status === 'missing') {
-    return result('unavailable', 'Not signed in to Cursor — run cursor-agent login')
-  }
-  if (readResult.status === 'error') {
-    return result('error', readResult.error)
+  const readResult = options.authReadResult ?? (await readCursorAuthSession())
+  const failure = credentialFailure(readResult)
+  if (failure || readResult.status !== 'ok') {
+    return failure ?? result('unavailable', SIGNED_OUT_MESSAGE)
   }
   const session = readResult.session
-  if (!isCursorAccessTokenFresh(session)) {
-    return result(
-      'error',
-      'Cursor sign-in expired — run cursor-agent on the computer running Orca; sign in if prompted.',
-      { failureKind: 'delegated-refresh-required', source: 'oauth' }
-    )
+  const source = usageSource(session)
+  const metadata = {
+    source,
+    credentialSource: session.source,
+    authProvenance: accountFingerprint(session)
   }
-  const cookie = buildCursorSessionCookie(session)
-  if (!cookie) {
-    return result('error', 'Cursor access token did not include a user id', {
-      failureKind: 'parse',
-      source: 'oauth'
-    })
-  }
-  const requestSignal = options.signal
-    ? AbortSignal.any([options.signal, AbortSignal.timeout(API_TIMEOUT_MS)])
-    : AbortSignal.timeout(API_TIMEOUT_MS)
+
   try {
-    const res = await net.fetch(CURSOR_USAGE_SUMMARY_URL, {
-      headers: { Accept: 'application/json', Cookie: cookie },
-      signal: requestSignal
+    const outcome = await fetchDashboardJson(USAGE_SUMMARY_URL, session, options.signal)
+    if (outcome.kind === 'result') {
+      return outcome.result
+    }
+    const mapped = mapCursorUsageSummary(parseCursorUsageSummary(outcome.data))
+
+    // Why: an unlimited plan has no ceiling to divide by. Publish the plan so the
+    // roster still lists the account, with no misleading bar.
+    if (mapped.isUnlimited) {
+      return result('ok', null, { planType: mapped.planType, usageMetadata: metadata })
+    }
+    if (mapped.monthly || mapped.buckets.length > 0) {
+      return result('ok', null, {
+        ...(mapped.monthly ? { monthly: mapped.monthly } : {}),
+        ...(mapped.buckets.length > 0 ? { buckets: mapped.buckets } : {}),
+        planType: mapped.planType,
+        usageMetadata: metadata
+      })
+    }
+
+    // Why: accounts still on request-quota billing report nothing under
+    // individualUsage, so try the older per-model endpoint before concluding
+    // the account has no visible quota.
+    const legacy = await fetchDashboardJson(
+      `${LEGACY_USAGE_URL}?user=${encodeURIComponent(session.token.subject)}`,
+      session,
+      options.signal
+    )
+    if (legacy.kind === 'result') {
+      return legacy.result
+    }
+    const legacyWindow = mapCursorLegacyRequestQuota(legacy.data)
+    if (legacyWindow) {
+      return result('ok', null, {
+        monthly: legacyWindow,
+        planType: mapped.planType,
+        usageMetadata: metadata
+      })
+    }
+
+    // Why: a 200 with no allowance means the plan exposes no quota (API-key or
+    // team-billed accounts). 'unavailable' hides the bar the way Claude does on
+    // API-key billing; 'error' would paint a permanent alert for a healthy account.
+    return result('unavailable', 'Cursor reported no usage allowance for this account', {
+      planType: mapped.planType,
+      usageMetadata: { ...metadata, failureKind: 'usage-unavailable' }
     })
-    if (res.status === 401 || res.status === 403) {
-      return result('error', `Cursor usage request unauthorized (HTTP ${res.status})`)
-    }
-    if (!res.ok) {
-      return result('error', `Cursor usage request failed (HTTP ${res.status})`)
-    }
-    const data: unknown = await res.json()
-    const summary = typeof data === 'object' && data !== null ? (data as CursorUsageSummary) : {}
-    return mapCursorUsageSummary(summary, session)
-  } catch (err) {
-    return result('error', err instanceof Error ? err.message : 'Cursor usage request failed')
+  } catch {
+    return result('error', 'Cursor usage request failed', {
+      usageMetadata: { ...metadata, failureKind: 'network' }
+    })
   }
 }

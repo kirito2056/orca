@@ -1,40 +1,34 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
-import SyncDatabase from '../sqlite/sync-database'
+import { z } from 'zod'
+import { readKeychainPassword } from '../macos-keychain/generic-password'
+import {
+  getCursorCliAuthPath,
+  getCursorCliConfigPath,
+  getCursorDesktopStateDbPath,
+  type CursorAuthSource
+} from './cursor-auth-paths'
+import type { CursorDesktopProfile } from '../foreign-sqlite-readers/cursor-profile-result'
+import { readCursorDesktopProfile } from '../foreign-sqlite-readers/foreign-sqlite-reader-spawn'
+import {
+  isCursorSessionTokenExpired,
+  parseCursorSessionToken,
+  type CursorSessionToken
+} from './cursor-session-token'
 
-export function getCursorAuthPath(): string {
-  const configHome = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config')
-  return join(configHome, 'cursor', 'auth.json')
+// Why: cursor-agent 2026.06+ stores the session in the login keychain, not auth.json.
+const KEYCHAIN_SERVICE = 'cursor-access-token'
+const KEYCHAIN_ACCOUNT = 'cursor-user'
+
+export type CursorIdentity = {
+  email: string | null
+  displayName: string | null
+  membershipType: string | null
+  subscriptionStatus: string | null
 }
 
-export function getCursorDesktopStatePath(platform: NodeJS.Platform = process.platform): string {
-  if (platform === 'darwin') {
-    return join(
-      homedir(),
-      'Library',
-      'Application Support',
-      'Cursor',
-      'User',
-      'globalStorage',
-      'state.vscdb'
-    )
-  }
-  if (platform === 'win32') {
-    const appData = process.env.APPDATA?.trim() || join(homedir(), 'AppData', 'Roaming')
-    return join(appData, 'Cursor', 'User', 'globalStorage', 'state.vscdb')
-  }
-  const configHome = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config')
-  return join(configHome, 'Cursor', 'User', 'globalStorage', 'state.vscdb')
-}
-
-const DESKTOP_ACCESS_TOKEN_KEY = 'cursorAuth/accessToken'
-const DESKTOP_DB_BUSY_TIMEOUT_MS = 1_000
-
-export type CursorAuthSession = {
-  accessToken: string
-  userId: string | null
-  expiresAtMs: number | null
+export type CursorAuthSession = CursorIdentity & {
+  token: CursorSessionToken
+  source: CursorAuthSource
 }
 
 export type CursorAuthReadResult =
@@ -42,125 +36,177 @@ export type CursorAuthReadResult =
   | { status: 'error'; error: string }
   | { status: 'ok'; session: CursorAuthSession }
 
-type CursorJwtClaims = {
-  sub?: string
-  exp?: number
+function emptyIdentity(): CursorIdentity {
+  return { email: null, displayName: null, membershipType: null, subscriptionStatus: null }
 }
 
-function getCursorAuthReadError(err: unknown): string {
-  if (err instanceof SyntaxError) {
-    return 'Cursor auth file is invalid'
-  }
-  return 'Unable to read Cursor auth file'
+function nonEmpty(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
 }
 
-function decodeJwtClaims(token: string): CursorJwtClaims | null {
-  const parts = token.split('.')
-  if (parts.length < 2) {
-    return null
+const cliConfigSchema = z.object({
+  authInfo: z.object({ email: z.unknown(), displayName: z.unknown() }).partial().optional()
+})
+
+const cliAuthFileSchema = z.object({ accessToken: z.unknown() }).partial()
+
+/** `cli-config.json` carries the signed-in identity for keychain-backed CLI sessions. */
+export function readCursorCliIdentity(configPath = getCursorCliConfigPath()): CursorIdentity {
+  if (!existsSync(configPath)) {
+    return emptyIdentity()
   }
   try {
-    const payload = Buffer.from(parts[1], 'base64url').toString('utf8')
-    const parsed: unknown = JSON.parse(payload)
-    return typeof parsed === 'object' && parsed !== null ? (parsed as CursorJwtClaims) : null
-  } catch {
-    return null
-  }
-}
-
-function userIdFromSubject(sub: string | undefined): string | null {
-  if (typeof sub !== 'string') {
-    return null
-  }
-  const segments = sub.split('|').filter((segment) => segment.length > 0)
-  return segments.at(-1) ?? null
-}
-
-export function sessionFromCursorAccessToken(accessToken: string): CursorAuthSession {
-  const claims = decodeJwtClaims(accessToken)
-  const exp = claims?.exp
-  return {
-    accessToken,
-    userId: userIdFromSubject(claims?.sub),
-    expiresAtMs: typeof exp === 'number' && Number.isFinite(exp) ? exp * 1000 : null
-  }
-}
-
-function readCursorDesktopAccessToken(): string | null {
-  const dbPath = getCursorDesktopStatePath()
-  if (!existsSync(dbPath)) {
-    return null
-  }
-  let db: SyncDatabase | null = null
-  try {
-    db = new SyncDatabase(dbPath, {
-      readonly: true,
-      fileMustExist: true,
-      timeout: DESKTOP_DB_BUSY_TIMEOUT_MS
-    })
-    const row = db
-      .prepare('SELECT value FROM ItemTable WHERE key = ? LIMIT 1')
-      .get(DESKTOP_ACCESS_TOKEN_KEY) as { value?: unknown } | undefined
-    const value = row?.value
-    if (typeof value === 'string' && value.length > 0) {
-      return value
+    const parsed = cliConfigSchema.safeParse(JSON.parse(readFileSync(configPath, 'utf8')))
+    if (!parsed.success) {
+      return emptyIdentity()
     }
-    if (value instanceof Uint8Array) {
-      const decoded = Buffer.from(value).toString('utf8')
-      return decoded.length > 0 ? decoded : null
+    return {
+      ...emptyIdentity(),
+      email: nonEmpty(parsed.data.authInfo?.email),
+      displayName: nonEmpty(parsed.data.authInfo?.displayName)
     }
-    return null
   } catch {
-    return null
-  } finally {
-    db?.close()
+    return emptyIdentity()
   }
 }
 
-function readCursorCliAuthSession(): CursorAuthReadResult {
-  const path = getCursorAuthPath()
-  if (!existsSync(path)) {
+type TokenReadResult =
+  | { status: 'missing' }
+  | { status: 'error'; error: string }
+  | { status: 'ok'; token: string }
+
+async function readKeychainToken(): Promise<TokenReadResult> {
+  if (process.platform !== 'darwin') {
     return { status: 'missing' }
   }
   try {
-    const parsed: unknown = JSON.parse(readFileSync(path, 'utf-8'))
-    if (typeof parsed !== 'object' || parsed === null) {
-      return { status: 'error', error: 'Cursor auth file is invalid' }
+    const token = await readKeychainPassword(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
+    return token ? { status: 'ok', token } : { status: 'missing' }
+  } catch {
+    // Why: a denied or locked keychain must not mask a readable auth.json below it.
+    return { status: 'error', error: 'Unable to read the Cursor login from the macOS Keychain' }
+  }
+}
+
+function readCliFileToken(authPath: string): TokenReadResult {
+  if (!existsSync(authPath)) {
+    return { status: 'missing' }
+  }
+  try {
+    const parsed = cliAuthFileSchema.safeParse(JSON.parse(readFileSync(authPath, 'utf8')))
+    const token = parsed.success ? parsed.data.accessToken : null
+    return typeof token === 'string' && token.length > 0
+      ? { status: 'ok', token }
+      : { status: 'missing' }
+  } catch (error) {
+    // Why: filesystem errors quote the full path; account state must not leak local usernames.
+    return {
+      status: 'error',
+      error:
+        error instanceof SyntaxError
+          ? 'Cursor CLI auth file is invalid'
+          : 'Unable to read the Cursor CLI auth file'
     }
-    const accessToken = (parsed as { accessToken?: unknown }).accessToken
-    if (typeof accessToken !== 'string' || accessToken.length === 0) {
-      return { status: 'missing' }
+  }
+}
+
+function sessionFrom(
+  raw: string,
+  source: CursorAuthSource,
+  identity: CursorIdentity
+): CursorAuthSession | null {
+  const token = parseCursorSessionToken(raw)
+  return token ? { ...identity, token, source } : null
+}
+
+function desktopIdentity(profile: CursorDesktopProfile): CursorIdentity {
+  return {
+    email: profile.email,
+    displayName: null,
+    membershipType: profile.membershipType,
+    subscriptionStatus: profile.subscriptionStatus
+  }
+}
+
+export type CursorAuthReadOptions = {
+  cliAuthPath?: string
+  cliConfigPath?: string
+  desktopStateDbPath?: string
+}
+
+/**
+ * Resolve the Cursor session Orca should poll with, preferring the CLI login
+ * (keychain, then legacy auth.json) over the Cursor IDE's own session. Read-only:
+ * Orca never writes, refreshes, or rotates the user's Cursor credentials.
+ */
+export async function readCursorAuthSession(
+  options: CursorAuthReadOptions = {}
+): Promise<CursorAuthReadResult> {
+  const cliAuthPath = options.cliAuthPath ?? getCursorCliAuthPath()
+  const cliConfigPath = options.cliConfigPath ?? getCursorCliConfigPath()
+  const desktopDbPath = options.desktopStateDbPath ?? getCursorDesktopStateDbPath()
+  const errors: string[] = []
+  // Why a live session wins over precedence: a user who signed the CLI in once and
+  // now works only in the IDE has an expired keychain token in front of a fresh
+  // desktop one. Returning the first token that parses would report "sign-in
+  // expired" forever while a usable session sat one source below.
+  let expired: CursorAuthSession | null = null
+  const takeLive = (session: CursorAuthSession | null): CursorAuthSession | null => {
+    if (!session) {
+      return null
     }
-    return { status: 'ok', session: sessionFromCursorAccessToken(accessToken) }
-  } catch (err) {
-    return { status: 'error', error: getCursorAuthReadError(err) }
+    if (isCursorSessionTokenExpired(session.token)) {
+      expired ??= session
+      return null
+    }
+    return session
   }
-}
 
-export function readCursorAuthSession(): CursorAuthReadResult {
-  const cli = readCursorCliAuthSession()
-  if (cli.status === 'ok') {
-    return cli
+  const keychainRead = await readKeychainToken()
+  if (keychainRead.status === 'error') {
+    errors.push(keychainRead.error)
   }
-  const desktopToken = readCursorDesktopAccessToken()
-  if (desktopToken) {
-    return { status: 'ok', session: sessionFromCursorAccessToken(desktopToken) }
+  if (keychainRead.status === 'ok') {
+    const session = takeLive(
+      sessionFrom(keychainRead.token, 'keychain', readCursorCliIdentity(cliConfigPath))
+    )
+    if (session) {
+      return { status: 'ok', session }
+    }
   }
-  return cli
-}
 
-const TOKEN_SKEW_MS = 5 * 60 * 1000
-
-export function isCursorAccessTokenFresh(session: CursorAuthSession): boolean {
-  if (session.expiresAtMs === null) {
-    return true
+  const cliRead = readCliFileToken(cliAuthPath)
+  if (cliRead.status === 'error') {
+    errors.push(cliRead.error)
   }
-  return session.expiresAtMs - Date.now() > TOKEN_SKEW_MS
-}
-
-export function buildCursorSessionCookie(session: CursorAuthSession): string | null {
-  if (!session.userId) {
-    return null
+  if (cliRead.status === 'ok') {
+    const session = takeLive(
+      sessionFrom(cliRead.token, 'cli', readCursorCliIdentity(cliConfigPath))
+    )
+    if (session) {
+      return { status: 'ok', session }
+    }
   }
-  return `WorkosCursorSessionToken=${session.userId}%3A%3A${session.accessToken}`
+
+  // Why not pushed to `errors`: the IDE holds a lock on state.vscdb while it runs,
+  // so a busy open is transient. Reporting it would pin an alert-triangle bar on
+  // every Cursor IDE user who never set Cursor up in Orca.
+  const desktopRead = await readCursorDesktopProfile(desktopDbPath)
+  if (desktopRead.status === 'ok' && desktopRead.profile.accessToken) {
+    const session = takeLive(
+      sessionFrom(desktopRead.profile.accessToken, 'desktop', desktopIdentity(desktopRead.profile))
+    )
+    if (session) {
+      return { status: 'ok', session }
+    }
+  }
+
+  // Why still returned: with no live session anywhere, the expired one is what the
+  // user must act on, and the fetcher turns it into "run cursor-agent login".
+  if (expired) {
+    return { status: 'ok', session: expired }
+  }
+
+  const firstError = errors[0]
+  return firstError === undefined ? { status: 'missing' } : { status: 'error', error: firstError }
 }

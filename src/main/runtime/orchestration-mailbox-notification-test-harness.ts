@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, vi } from 'vitest'
 import { ORCHESTRATION_CONTRACT_VERSION } from '../../shared/protocol-version'
+import type { AgentStatusIpcPayload } from '../../shared/agent-status-types'
 import type Database from '../sqlite/sync-database'
 import { OrcaRuntimeService } from './orca-runtime'
 import { OrchestrationDb } from './orchestration/db'
@@ -84,9 +85,16 @@ export type MailboxCheckOptions = {
 
 export function createRuntime(
   db: OrchestrationDb,
-  options: { connectionId?: string; isWsl?: boolean } = {}
+  options: {
+    connectionId?: string
+    isWsl?: boolean
+    getAgentStatusSnapshot?: () => AgentStatusIpcPayload[]
+    checkHookAgentPresence?: (paneKey: string) => Promise<'live' | 'unverifiable' | 'exited' | null>
+  } = {}
 ): MailboxNotificationHarness {
   const runtime = new OrcaRuntimeService(null, undefined, {
+    getAgentStatusSnapshot: options.getAgentStatusSnapshot,
+    checkHookAgentPresence: options.checkHookAgentPresence,
     attestAgentHookCompatibilityAuthority: ({ paneKey }) =>
       paneKey === PANE_KEY || paneKey.startsWith(`${SECOND_TAB_ID}:`)
         ? { paneKey, source: 'current_hook' }
@@ -195,9 +203,10 @@ export function registerSecondPane(
 
 export async function driveToLiveIdle(runtime: OrcaRuntimeService): Promise<void> {
   await runtime.listTerminals()
-  const working = runtime.acceptPtyDataBounded(PTY_ID, '\x1b]0;Codex working\x07', 1)
-  const done = runtime.acceptPtyDataBounded(PTY_ID, '\x1b]0;Codex done\x07', 2)
-  await Promise.all([working.completion, done.completion])
+  runtime.onPtyData(PTY_ID, '\x1b]0;Codex working\x07', 1)
+  runtime.onPtyData(PTY_ID, '\x1b]0;Codex done\x07', 2)
+  // Why: the snapshot awaits the headless model's write chain, so both chunks are parsed.
+  await runtime.serializeMainTerminalBuffer(PTY_ID)
 }
 
 export function pointerCount(write: ReturnType<typeof vi.fn>): number {
