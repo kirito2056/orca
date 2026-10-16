@@ -6,6 +6,10 @@ import type { ClaudeUsageDailyAggregate, ClaudeUsageSession } from '../claude-us
 import type { CodexUsageDailyAggregate, CodexUsageSession } from '../codex-usage/types'
 import type { OpenCodeUsageDailyAggregate, OpenCodeUsageSession } from '../opencode-usage/types'
 import type { MuseUsageDailyAggregate, MuseUsageSession } from '../muse-usage/types'
+import type {
+  AntigravityUsageDailyAggregate,
+  AntigravityUsageSession
+} from '../antigravity-usage/types'
 import type { UsageScanWorktreeRef } from './usage-provider-contract'
 import type {
   UsageCacheSplitRequest,
@@ -13,6 +17,7 @@ import type {
   UsageSourceCacheRef
 } from './usage-source-cache-file'
 import {
+  scanAntigravityUsageOnWorker,
   scanClaudeUsageOnWorker,
   scanCodexUsageOnWorker,
   scanMuseUsageOnWorker,
@@ -117,6 +122,20 @@ export function scanMuseUsageFilesViaWorker(
   dailyAggregates: MuseUsageDailyAggregate[]
 }> {
   return scanMuseUsageOnWorker((body) => getSharedClient().scan(body), worktrees, sourceCache)
+}
+
+export function scanAntigravityUsageFilesViaWorker(
+  worktrees: UsageScanWorktreeRef[],
+  sourceCache: UsageSourceCacheRef
+): Promise<{
+  sessions: AntigravityUsageSession[]
+  dailyAggregates: AntigravityUsageDailyAggregate[]
+}> {
+  return scanAntigravityUsageOnWorker(
+    (body) => getSharedClient().scan(body),
+    worktrees,
+    sourceCache
+  )
 }
 
 /**

@@ -2,6 +2,10 @@ import type { ClaudeUsageDailyAggregate, ClaudeUsageSession } from '../claude-us
 import type { CodexUsageDailyAggregate, CodexUsageSession } from '../codex-usage/types'
 import type { OpenCodeUsageDailyAggregate, OpenCodeUsageSession } from '../opencode-usage/types'
 import type { MuseUsageDailyAggregate, MuseUsageSession } from '../muse-usage/types'
+import type {
+  AntigravityUsageDailyAggregate,
+  AntigravityUsageSession
+} from '../antigravity-usage/types'
 import type { UsageScanWorktreeRef } from './usage-provider-contract'
 import type {
   UsageCacheSplitRequest,
@@ -20,7 +24,7 @@ import type {
  * than `UsageProviderId`: a `plugin:` provider supplies its own scan function,
  * which is not in this bundle and cannot be named on the wire.
  */
-export type UsageScanWorkerProviderId = 'claude' | 'codex' | 'opencode' | 'muse'
+export type UsageScanWorkerProviderId = 'claude' | 'codex' | 'opencode' | 'muse' | 'antigravity'
 
 /**
  * Scan body per provider. The worker reads that provider's per-source cache from
@@ -49,6 +53,12 @@ export type UsageScanWorkerScanBody =
   | {
       operation: 'scan'
       providerId: 'muse'
+      worktrees: UsageScanWorktreeRef[]
+      sourceCache: UsageSourceCacheRef
+    }
+  | {
+      operation: 'scan'
+      providerId: 'antigravity'
       worktrees: UsageScanWorktreeRef[]
       sourceCache: UsageSourceCacheRef
     }
@@ -84,6 +94,12 @@ export type UsageScanWorkerScanValue =
       providerId: 'muse'
       sessions: MuseUsageSession[]
       dailyAggregates: MuseUsageDailyAggregate[]
+    }
+  | {
+      operation: 'scan'
+      providerId: 'antigravity'
+      sessions: AntigravityUsageSession[]
+      dailyAggregates: AntigravityUsageDailyAggregate[]
     }
 
 export type UsageScanWorkerValue =

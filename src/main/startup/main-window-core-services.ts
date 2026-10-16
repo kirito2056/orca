@@ -36,6 +36,8 @@ export function attachMainWindowCoreServices(
   const codexUsage = state.codexUsage
   const openCodeUsage = state.openCodeUsage
   const museUsage = state.museUsage
+  const antigravityUsage = state.antigravityUsage
+  const cursorUsage = state.cursorUsage
   const codexAccounts = state.codexAccounts
   const claudeAccounts = state.claudeAccounts
   const rateLimits = state.rateLimits
@@ -51,6 +53,8 @@ export function attachMainWindowCoreServices(
     !codexUsage ||
     !openCodeUsage ||
     !museUsage ||
+    !antigravityUsage ||
+    !cursorUsage ||
     !codexAccounts ||
     !claudeAccounts ||
     !rateLimits ||
@@ -69,6 +73,8 @@ export function attachMainWindowCoreServices(
     codexUsage,
     openCodeUsage,
     museUsage,
+    antigravityUsage,
+    cursorUsage,
     codexAccounts,
     claudeAccounts,
     rateLimits,

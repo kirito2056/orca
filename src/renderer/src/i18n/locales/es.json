@@ -4416,6 +4416,8 @@
           "c760c481c5": "Resumen de uso",
           "55c910f4f1": "- algunos precios de modelos no están disponibles",
           "enableMuse": "Activar Muse",
+          "enableAntigravity": "Activar Antigravity",
+          "enableCursor": "Activar Cursor",
           "noLocalUsageYet": "Aún no se encontró uso local de Claude, Codex, OpenCode ni Muse. El resumen se completará después de que la próxima sesión de agente escriba registros de tokens."
         },
         "share": {
@@ -4532,6 +4534,28 @@
           "emptyMessage": "Aún no se encontró uso local de Muse para este ámbito.",
           "noCostNote": "Los registros de sesión de Muse registran tokens pero no el costo, por lo que no se muestra una estimación de costo.",
           "recentSessionsDescription": "Sesiones locales de Muse más recientes en este ámbito."
+        },
+        "AntigravityUsagePane": {
+          "title": "Seguimiento de uso de Antigravity",
+          "enableLabel": "Activar análisis de uso de Antigravity",
+          "disabledDescription": "Lee los registros de sesión locales de Antigravity para mostrar estadísticas de tokens, modelos y sesiones.",
+          "scopeAll": "Todo el uso local de Antigravity",
+          "optionsLabel": "Opciones de uso de Antigravity",
+          "refreshAriaLabel": "Actualizar uso de Antigravity",
+          "emptyMessage": "Aún no se encontró uso local de Antigravity para este ámbito.",
+          "noCostNote": "Los registros de sesión de Antigravity registran tokens pero no el costo, por lo que no se muestra una estimación de costo.",
+          "recentSessionsDescription": "Sesiones locales de Antigravity más recientes en este ámbito."
+        },
+        "CursorUsagePane": {
+          "title": "Seguimiento de uso de Cursor",
+          "enableLabel": "Activar análisis de uso de Cursor",
+          "disabledDescription": "Lee los eventos de uso del panel de Cursor con tu cuenta de Cursor iniciada para mostrar estadísticas de tokens, modelos, costo y sesiones.",
+          "scopeAll": "Todo el uso de Cursor",
+          "optionsLabel": "Opciones de uso de Cursor",
+          "refreshAriaLabel": "Actualizar uso de Cursor",
+          "emptyMessage": "Aún no se encontró uso de Cursor para este ámbito.",
+          "costNote": "El costo es el valor a tarifa de API que Cursor registra por cada solicitud, incluido el uso cubierto por tu plan.",
+          "recentSessionsDescription": "Sesiones de Cursor más recientes en este ámbito."
         }
       },
       "sparse": {

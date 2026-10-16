@@ -4420,6 +4420,8 @@
           "c760c481c5": "使用概述",
           "55c910f4f1": "- 部分型号价格不详",
           "enableMuse": "启用 Muse",
+          "enableAntigravity": "启用 Antigravity",
+          "enableCursor": "启用 Cursor",
           "noLocalUsageYet": "尚未找到本地 Claude、Codex、OpenCode 或 Muse 使用情况。概览将在下一个智能体会话写入token日志后填充。"
         },
         "share": {
@@ -4536,6 +4538,28 @@
           "emptyMessage": "尚未找到此范围内的本地 Muse 使用情况。",
           "noCostNote": "Muse 会话日志只记录token而不记录费用，因此不显示费用估算。",
           "recentSessionsDescription": "此范围内最近的本地 Muse 会话。"
+        },
+        "AntigravityUsagePane": {
+          "title": "Antigravity 使用情况跟踪",
+          "enableLabel": "启用 Antigravity 使用情况分析",
+          "disabledDescription": "读取本地 Antigravity 会话日志以显示token、模型和会话统计信息。",
+          "scopeAll": "所有本地 Antigravity 使用情况",
+          "optionsLabel": "Antigravity 使用情况选项",
+          "refreshAriaLabel": "刷新 Antigravity 使用情况",
+          "emptyMessage": "尚未找到此范围内的本地 Antigravity 使用情况。",
+          "noCostNote": "Antigravity 会话日志只记录token而不记录费用，因此不显示费用估算。",
+          "recentSessionsDescription": "此范围内最近的本地 Antigravity 会话。"
+        },
+        "CursorUsagePane": {
+          "title": "Cursor 使用情况跟踪",
+          "enableLabel": "启用 Cursor 使用情况分析",
+          "disabledDescription": "使用已登录的 Cursor 账户读取 Cursor 仪表板中的使用事件，以显示token、模型、费用和会话统计信息。",
+          "scopeAll": "所有 Cursor 使用情况",
+          "optionsLabel": "Cursor 使用情况选项",
+          "refreshAriaLabel": "刷新 Cursor 使用情况",
+          "emptyMessage": "尚未找到此范围内的 Cursor 使用情况。",
+          "costNote": "费用是 Cursor 为每个请求记录的按 API 费率计算的金额，包括套餐内的用量。",
+          "recentSessionsDescription": "此范围内最近的 Cursor 会话。"
         }
       },
       "sparse": {

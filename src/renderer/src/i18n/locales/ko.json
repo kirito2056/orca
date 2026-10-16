@@ -4420,6 +4420,8 @@
           "c760c481c5": "사용량 개요",
           "55c910f4f1": "- 일부 모델 가격 확인 불가",
           "enableMuse": "Muse 사용",
+          "enableAntigravity": "Antigravity 사용",
+          "enableCursor": "Cursor 사용",
           "noLocalUsageYet": "아직 로컬 Claude, Codex, OpenCode 또는 Muse 사용량을 찾지 못했습니다. 다음 에이전트 세션이 토큰 로그를 기록하면 개요가 채워집니다."
         },
         "share": {
@@ -4536,6 +4538,28 @@
           "emptyMessage": "이 범위에서 아직 로컬 Muse 사용량을 찾지 못했습니다.",
           "noCostNote": "Muse 세션 로그에는 토큰만 기록되고 비용은 기록되지 않으므로 비용 추정치를 표시하지 않습니다.",
           "recentSessionsDescription": "이 범위에서 가장 최근의 로컬 Muse 세션입니다."
+        },
+        "AntigravityUsagePane": {
+          "title": "Antigravity 사용량 추적",
+          "enableLabel": "Antigravity 사용량 분석 사용",
+          "disabledDescription": "로컬 Antigravity 세션 로그를 읽어 토큰, 모델, 세션 통계를 표시합니다.",
+          "scopeAll": "모든 로컬 Antigravity 사용량",
+          "optionsLabel": "Antigravity 사용량 옵션",
+          "refreshAriaLabel": "Antigravity 사용량 새로 고침",
+          "emptyMessage": "이 범위에서 아직 로컬 Antigravity 사용량을 찾지 못했습니다.",
+          "noCostNote": "Antigravity 세션 로그에는 토큰만 기록되고 비용은 기록되지 않으므로 비용 추정치를 표시하지 않습니다.",
+          "recentSessionsDescription": "이 범위에서 가장 최근의 로컬 Antigravity 세션입니다."
+        },
+        "CursorUsagePane": {
+          "title": "Cursor 사용량 추적",
+          "enableLabel": "Cursor 사용량 분석 사용",
+          "disabledDescription": "로그인된 Cursor 계정으로 Cursor 대시보드의 사용 이벤트를 읽어 토큰, 모델, 비용, 세션 통계를 표시합니다.",
+          "scopeAll": "모든 Cursor 사용량",
+          "optionsLabel": "Cursor 사용량 옵션",
+          "refreshAriaLabel": "Cursor 사용량 새로 고침",
+          "emptyMessage": "이 범위에서 아직 Cursor 사용량을 찾지 못했습니다.",
+          "costNote": "비용은 Cursor가 요청마다 기록한 API 단가 기준 금액이며, 요금제에 포함된 사용량도 포함합니다.",
+          "recentSessionsDescription": "이 범위에서 가장 최근의 Cursor 세션입니다."
         }
       },
       "sparse": {

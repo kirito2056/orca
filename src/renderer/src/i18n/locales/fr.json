@@ -4528,6 +4528,8 @@
           "c760c481c5": "Vue d'ensemble de l'utilisation",
           "55c910f4f1": "- certains prix de modèles sont indisponibles",
           "enableMuse": "Activer Muse",
+          "enableAntigravity": "Activer Antigravity",
+          "enableCursor": "Activer Cursor",
           "noLocalUsageYet": "Aucune utilisation locale de Claude, Codex, OpenCode ou Muse trouvée pour l'instant. L'aperçu se remplira dès que la prochaine session d'agent écrira des journaux de tokens."
         },
         "share": {
@@ -4644,6 +4646,28 @@
           "emptyMessage": "Aucune utilisation locale de Muse trouvée pour l'instant dans cette portée.",
           "noCostNote": "Les journaux de session Muse enregistrent les tokens mais pas le coût, aucune estimation de coût n'est donc affichée.",
           "recentSessionsDescription": "Sessions Muse locales les plus récentes dans cette portée."
+        },
+        "AntigravityUsagePane": {
+          "title": "Suivi de l'utilisation de Antigravity",
+          "enableLabel": "Activer l'analyse d'utilisation de Antigravity",
+          "disabledDescription": "Lit les journaux de session Antigravity locaux pour afficher les statistiques de tokens, de modèles et de sessions.",
+          "scopeAll": "Toute l'utilisation locale de Antigravity",
+          "optionsLabel": "Options d'utilisation de Antigravity",
+          "refreshAriaLabel": "Actualiser l'utilisation de Antigravity",
+          "emptyMessage": "Aucune utilisation locale de Antigravity trouvée pour l'instant dans cette portée.",
+          "noCostNote": "Les journaux de session Antigravity enregistrent les tokens mais pas le coût, aucune estimation de coût n'est donc affichée.",
+          "recentSessionsDescription": "Sessions Antigravity locales les plus récentes dans cette portée."
+        },
+        "CursorUsagePane": {
+          "title": "Suivi de l'utilisation de Cursor",
+          "enableLabel": "Activer l'analyse d'utilisation de Cursor",
+          "disabledDescription": "Lit les événements d'utilisation du tableau de bord Cursor avec votre compte Cursor connecté pour afficher les statistiques de tokens, de modèles, de coût et de sessions.",
+          "scopeAll": "Toute l'utilisation de Cursor",
+          "optionsLabel": "Options d'utilisation de Cursor",
+          "refreshAriaLabel": "Actualiser l'utilisation de Cursor",
+          "emptyMessage": "Aucune utilisation de Cursor trouvée pour l'instant dans cette portée.",
+          "costNote": "Le coût correspond à la valeur au tarif API que Cursor enregistre pour chaque requête, y compris l'utilisation couverte par votre forfait.",
+          "recentSessionsDescription": "Sessions Cursor les plus récentes dans cette portée."
         }
       },
       "sparse": {

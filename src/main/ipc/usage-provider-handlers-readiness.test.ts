@@ -24,6 +24,7 @@ vi.mock('../usage/usage-scan-worker-spawn', () => ({
   scanCodexUsageFilesViaWorker: vi.fn(),
   scanOpenCodeUsageDatabasesViaWorker: vi.fn(),
   scanMuseUsageFilesViaWorker: vi.fn(),
+  scanAntigravityUsageFilesViaWorker: vi.fn(),
   splitUsageCacheFileViaWorker: vi.fn()
 }))
 
@@ -31,6 +32,8 @@ import { ClaudeUsageStore, initClaudeUsagePath } from '../claude-usage/store'
 import { CodexUsageStore, initCodexUsagePath } from '../codex-usage/store'
 import { OpenCodeUsageStore, initOpenCodeUsagePath } from '../opencode-usage/store'
 import { MuseUsageStore, initMuseUsagePath } from '../muse-usage/store'
+import { AntigravityUsageStore, initAntigravityUsagePath } from '../antigravity-usage/store'
+import { CursorUsageStore, initCursorUsagePath } from '../cursor-usage/store'
 import {
   scanClaudeUsageFilesViaWorker,
   splitUsageCacheFileViaWorker
@@ -79,7 +82,9 @@ function createProviders(): Parameters<typeof registerUsageProviderHandlers>[0] 
     claudeUsage: new ClaudeUsageStore(backingStore),
     codexUsage: new CodexUsageStore(backingStore),
     openCodeUsage: new OpenCodeUsageStore(backingStore),
-    museUsage: new MuseUsageStore(backingStore)
+    museUsage: new MuseUsageStore(backingStore),
+    antigravityUsage: new AntigravityUsageStore(backingStore),
+    cursorUsage: new CursorUsageStore(backingStore)
   }
   stores.push(...Object.values(providers))
   registerUsageProviderHandlers(providers)
@@ -115,6 +120,8 @@ beforeEach(() => {
   initCodexUsagePath()
   initOpenCodeUsagePath()
   initMuseUsagePath()
+  initAntigravityUsagePath()
+  initCursorUsagePath()
 })
 
 afterEach(async () => {
@@ -171,29 +178,31 @@ it('awaits loading before the first disabled cached snapshot and all historical 
   expect(scanClaudeUsageFilesViaWorker).not.toHaveBeenCalled()
 })
 
-it.each(['claudeUsage', 'codexUsage', 'openCodeUsage', 'museUsage'] as const)(
-  'gates snapshot and scan state for %s until whenLoaded resolves',
-  async (prefix) => {
-    const providers = createProviders()
-    const store = providers[prefix]
-    const pending = Promise.withResolvers<void>()
-    releasePending.push(() => pending.resolve(undefined))
-    vi.spyOn(store, 'whenLoaded').mockReturnValue(pending.promise)
-    const snapshotGetter = vi.spyOn(store, 'getSnapshot')
-    const scanStateGetter = vi.spyOn(store, 'getScanState')
-    const snapshot = Promise.resolve(
-      invoke(`${prefix}:getSnapshot`, { scope: 'all', range: 'all' })
-    )
-    const scanState = Promise.resolve(invoke(`${prefix}:getScanState`))
-    await nextTurn()
-    expect(snapshotGetter).not.toHaveBeenCalled()
-    expect(scanStateGetter).not.toHaveBeenCalled()
-    pending.resolve(undefined)
-    await Promise.all([snapshot, scanState])
-    expect(snapshotGetter).toHaveBeenCalledWith('all', 'all', undefined)
-    expect(scanStateGetter).toHaveBeenCalled()
-  }
-)
+it.each([
+  'claudeUsage',
+  'codexUsage',
+  'openCodeUsage',
+  'museUsage',
+  'antigravityUsage',
+  'cursorUsage'
+] as const)('gates snapshot and scan state for %s until whenLoaded resolves', async (prefix) => {
+  const providers = createProviders()
+  const store = providers[prefix]
+  const pending = Promise.withResolvers<void>()
+  releasePending.push(() => pending.resolve(undefined))
+  vi.spyOn(store, 'whenLoaded').mockReturnValue(pending.promise)
+  const snapshotGetter = vi.spyOn(store, 'getSnapshot')
+  const scanStateGetter = vi.spyOn(store, 'getScanState')
+  const snapshot = Promise.resolve(invoke(`${prefix}:getSnapshot`, { scope: 'all', range: 'all' }))
+  const scanState = Promise.resolve(invoke(`${prefix}:getScanState`))
+  await nextTurn()
+  expect(snapshotGetter).not.toHaveBeenCalled()
+  expect(scanStateGetter).not.toHaveBeenCalled()
+  pending.resolve(undefined)
+  await Promise.all([snapshot, scanState])
+  expect(snapshotGetter).toHaveBeenCalledWith('all', 'all', undefined)
+  expect(scanStateGetter).toHaveBeenCalled()
+})
 
 it('keeps a loaded provider snapshot synchronous for direct callers', () => {
   const { codexUsage } = createProviders()
