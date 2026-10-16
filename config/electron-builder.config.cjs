@@ -461,6 +461,31 @@ module.exports = {
       )
     }
   },
+  afterSign: async (context) => {
+    if (
+      context.electronPlatformName !== 'darwin' ||
+      isMacRelease ||
+      process.env.CSC_NAME ||
+      findInstalledMacSigningIdentity()
+    ) {
+      return
+    }
+    const appPath = join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`)
+    execFileSync(
+      'codesign',
+      [
+        '--force',
+        '--deep',
+        '--sign',
+        '-',
+        '--entitlements',
+        resolve(__dirname, '../resources/build/entitlements.mac.plist'),
+        appPath
+      ],
+      { stdio: 'inherit' }
+    )
+    execFileSync('codesign', ['--verify', '--deep', '--strict', appPath], { stdio: 'inherit' })
+  },
   win: {
     executableName: 'Orca',
     // Why: Windows installers are signed after electron-builder packaging by
